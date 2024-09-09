@@ -1,0 +1,13 @@
+compile_commands.json
+/assets/shader-cache/
+/assets/src-deprecated/
+assets/blobs/tianocore.bin
+/src/extern/
+/backups
+/logs
+/build
+/bin
+.vscode
+.cache
+random_data.txt
+sigil.meta.sh
