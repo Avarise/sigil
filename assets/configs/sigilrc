@@ -1,0 +1,13 @@
+# Sigil Tools Suite
+alias sigil-desktop='/sigil/vm/build/sigil-tools --dwm'
+alias sigil-console='/sigil/vm/build/sigil-tools --console'
+alias sigil-backup='/sigil/vm/src/scripts/backup.sh'
+alias sigil-editor='/sigil/vm/build/sigil-tools --gui'
+alias sigil-build='/sigil/vm/src/scripts/build.sh --install'
+alias sigil-test='/sigil/vm/src/scripts/build.sh --test'
+alias sigil-code='code /sigil/vm'
+
+# Sigil wlx wine wrappers
+alias wlx64-prime='WINEPREFIX=/sigil/wlx64 prime-run wine64'
+alias wlx64-run='WINEPREFIX=/sigil/wlx64 wine64'
+alias wlx64='WINEPREFIX=/sigil/wlx64'
