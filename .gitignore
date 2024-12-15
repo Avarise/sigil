@@ -1,0 +1,17 @@
+# Project / Env
+compile_commands.json
+.vscode
+.cache
+
+# Submodules
+/src/extern/
+
+# SigilVM artifacts
+/assets/blobs/tianocore.bin
+/assets/src-deprecated/
+/assets/shader-cache/
+/random_data.txt
+/sigil.meta.sh
+/build
+/logs
+/bin
