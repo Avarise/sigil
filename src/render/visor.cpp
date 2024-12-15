@@ -1,10 +1,10 @@
 #include <cstdio>
 #include <thread>
 #include "visor.h"
-#include "../vm/system.h"
-#include "../utils/generic.h"
-#include "imgui_impl_glfw.h"
 #include "imgui_impl_vulkan.h"
+#include "imgui_impl_glfw.h"
+#include "../utils/generic.h"
+#include "../vm/system.h"
 
 static sigil::vmnode_t *visor_node = nullptr;
 static sigil::visor::visor_data_t *visor_data = nullptr;
@@ -18,7 +18,7 @@ static void cleanup_visor_data() {
 }
 
 sigil::visor::visor_data_t::visor_data_t() {
-
+    
 }
 
 sigil::visor::visor_data_t::~visor_data_t() {

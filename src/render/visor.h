@@ -1,10 +1,10 @@
 #pragma once
 #include "../engine/runtime.h"
+#include "../utils/math.h"
 #include "../vm/core.h"
 #include "../vm/node.h"
 #include "window.h"
 #include "std.h"
-#include "../utils/math.h"
 
 // Visor vmnode
 namespace sigil::visor {

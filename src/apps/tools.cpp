@@ -72,8 +72,8 @@ static void             subwindow_demo();
 
 // Popups
 static void             popup_open_project();
-static void             pupup_save_project();
-static void             pupup_exit_project();
+static void             popup_save_project();
+static void             popup_exit_project();
 static void             popup_new_project();
 static void             popup_import_file();
 static void             popup_export_file();
@@ -112,7 +112,6 @@ static struct text_editor_t {
     char editor_content[1024 * 32] = {0};
 } text_editor;
 
-
 // SigilVM and auxiliary variable
 ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 sigil::virtual_machine_t *virtual_machine = nullptr;
@@ -147,16 +146,7 @@ int main(int argc, const char **argv) {
     exit_sigil_tools(app_status);
 }
 
-static void exit_sigil_tools(sigil::status_t st) {
-    //sigil::events::event_t *shutdown = sigil::events::peek(sigil::runtime::SHUTDOWN);
-    //sigil::events::trigger(shutdown);
-    virtual_machine->deinitialize();
-    delete virtual_machine;
-    virtual_machine = nullptr;
-    printf("sigil-tools: exiting -> %s\n", sigil::status_t_cstr(st));
-    exit(0);
-}
-
+// Subcommands
 void subcommand_flush_vm() {
     printf("sigil-tools: Flushing SigilVM\n");
     app_status = sigil::system::invalidate_root();
@@ -221,112 +211,6 @@ void subcommand_gui() {
         printf("sigil-tools: failed to prepare sigil-tools gui\n");
         exit_sigil_tools(sigil::VM_FAILED_ALLOC);
     }
-}
-
-sigil::status_t gui_main_loop() {
-    ImGuiIO& io = ImGui::GetIO();
-    sigil::utils::exec_timer gui_main_loop_timer;
-
-    while (!glfwWindowShouldClose(main_window->glfw_window)) {
-        gui_main_loop_timer.start();
-
-        // glfw events first
-        glfwPollEvents();
-
-        // resize swap chain and determine visibility
-        sigil::visor::check_for_swapchain_update(main_window);
-
-        auto imgui_draw_data = ImGui::GetDrawData();
-        const bool is_minimized = (imgui_draw_data->DisplaySize.x <= 0.0f || imgui_draw_data->DisplaySize.y <= 0.0f);
-
-        gui_prepare_frame(is_minimized);
-
-
-
-
-
-        frames_processed++;
-        gui_main_loop_timer.stop();
-
-        if (!(frames_processed % 515)) {
-            output_buffer += sigil::log::get_current_time();
-            sigil::utils::insert_into_string(output_buffer,
-                ":spent %lu microseconds rendering last frame [ %u/%u/%u  Processed/Prepared/Presented] #%u\n",
-                gui_main_loop_timer.us(), frames_processed, frames_prepared, frames_presented);
-        }
-    }
-
-    return sigil::VM_OK;
-}
-
-// Using Visor, and ImGui to arrange a new frame for rendering
-// Don't use Vulkan directly here
-static void gui_prepare_frame(bool is_window_minimized) {
-    // Visor first
-    app_status = sigil::visor::new_frame(main_window);
-    if (app_status != sigil::VM_OK) exit_sigil_tools(app_status);
-
-    // Imgui second
-    ImGui::NewFrame();
-    ImGuiIO &io = ImGui::GetIO();
-    main_window->imgui_wd.ClearValue.color.float32[0] = clear_color.x * clear_color.w;
-    main_window->imgui_wd.ClearValue.color.float32[1] = clear_color.y * clear_color.w;
-    main_window->imgui_wd.ClearValue.color.float32[2] = clear_color.z * clear_color.w;
-    main_window->imgui_wd.ClearValue.color.float32[3] = clear_color.w;
-    
-    // Main window composition
-    ImGui::DockSpaceOverViewport();
-    
-    // Always draw menubar
-    subwindow_menubar();
-    
-    // Conditional subwindows
-    if (subwindows.asset_manager) subwindow_asset_manager();
-    if (subwindows.style_editor) subwindow_style_manager();
-    if (subwindows.asset_editor) subwindow_asset_editor();
-    if (subwindows.text_editor) subwindow_text_editor();
-    if (subwindows.overview) subwindow_overview();
-    if (subwindows.options) subwindow_options();
-    if (subwindows.output) subwindow_output();
-    if (subwindows.demo) subwindow_demo();
-    if (subwindows.perf) subwindow_perf();
-
-    // Convert ImGui elements into framedata for visor, end preparation
-    ImGui::Render();
-    if (!is_window_minimized)
-        sigil::visor::prepare_imgui_drawdata(main_window);
-    
-    if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
-        ImGui::UpdatePlatformWindows();
-        ImGui::RenderPlatformWindowsDefault();
-    }
-
-    if (!is_window_minimized)
-        sigil::visor::present_frame(main_window);
-
-    if (!is_window_minimized)
-        frames_presented++;
-}
-
-// Popups
-void popup_new_project() {
-
-}
-
-void popup_open_project() {
-
-}
-
-void popup_save_project() {
-
-}
-
-void popup_export_file() {
-
-}
-
-void popup_import_file() {
-
 }
 
 // Subwindows
@@ -483,3 +367,120 @@ static void subwindow_options() {
 static void subwindow_demo() {
     ImGui::ShowDemoWindow(&subwindows.demo);
 }
+
+// Popups
+void popup_new_project() {
+
+}
+
+void popup_open_project() {
+
+}
+
+void popup_save_project() {
+
+}
+
+void popup_export_file() {
+
+}
+
+void popup_import_file() {
+
+}
+
+static void exit_sigil_tools(sigil::status_t st) {
+    //sigil::events::event_t *shutdown = sigil::events::peek(sigil::runtime::SHUTDOWN);
+    //sigil::events::trigger(shutdown);
+    virtual_machine->deinitialize();
+    delete virtual_machine;
+    virtual_machine = nullptr;
+    printf("sigil-tools: exiting -> %s\n", sigil::status_t_cstr(st));
+    exit(0);
+}
+
+// Using Visor, and ImGui to arrange a new frame for rendering
+// Don't use Vulkan directly here
+static void gui_prepare_frame(bool is_window_minimized) {
+    // Visor first
+    app_status = sigil::visor::new_frame(main_window);
+    if (app_status != sigil::VM_OK) exit_sigil_tools(app_status);
+
+    // Imgui second
+    ImGui::NewFrame();
+    ImGuiIO &io = ImGui::GetIO();
+    main_window->imgui_wd.ClearValue.color.float32[0] = clear_color.x * clear_color.w;
+    main_window->imgui_wd.ClearValue.color.float32[1] = clear_color.y * clear_color.w;
+    main_window->imgui_wd.ClearValue.color.float32[2] = clear_color.z * clear_color.w;
+    main_window->imgui_wd.ClearValue.color.float32[3] = clear_color.w;
+    
+    // Main window composition
+    ImGui::DockSpaceOverViewport();
+    
+    // Always draw menubar
+    subwindow_menubar();
+    
+    // Conditional subwindows
+    if (subwindows.asset_manager) subwindow_asset_manager();
+    if (subwindows.style_editor) subwindow_style_manager();
+    if (subwindows.asset_editor) subwindow_asset_editor();
+    if (subwindows.text_editor) subwindow_text_editor();
+    if (subwindows.overview) subwindow_overview();
+    if (subwindows.options) subwindow_options();
+    if (subwindows.output) subwindow_output();
+    if (subwindows.demo) subwindow_demo();
+    if (subwindows.perf) subwindow_perf();
+
+    // Convert ImGui elements into framedata for visor, end preparation
+    ImGui::Render();
+    if (!is_window_minimized)
+        sigil::visor::prepare_imgui_drawdata(main_window);
+    
+    if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
+        ImGui::UpdatePlatformWindows();
+        ImGui::RenderPlatformWindowsDefault();
+    }
+
+    if (!is_window_minimized)
+        sigil::visor::present_frame(main_window);
+
+    if (!is_window_minimized)
+        frames_presented++;
+}
+
+sigil::status_t gui_main_loop() {
+    ImGuiIO& io = ImGui::GetIO();
+    sigil::utils::exec_timer gui_main_loop_timer;
+
+    while (!glfwWindowShouldClose(main_window->glfw_window)) {
+        gui_main_loop_timer.start();
+
+        // glfw events first
+        glfwPollEvents();
+
+        // resize swap chain and determine visibility
+        sigil::visor::check_for_swapchain_update(main_window);
+
+        auto imgui_draw_data = ImGui::GetDrawData();
+        const bool is_minimized = (imgui_draw_data->DisplaySize.x <= 0.0f || imgui_draw_data->DisplaySize.y <= 0.0f);
+
+        gui_prepare_frame(is_minimized);
+
+
+
+
+
+        frames_processed++;
+        gui_main_loop_timer.stop();
+
+        if (!(frames_processed % 515)) {
+            output_buffer += sigil::log::get_current_time();
+            sigil::utils::insert_into_string(output_buffer,
+                ":spent %lu microseconds rendering last frame [ %u/%u/%u  Processed/Prepared/Presented] #%u\n",
+                gui_main_loop_timer.us(), frames_processed, frames_prepared, frames_presented);
+        }
+    }
+
+    return sigil::VM_OK;
+}
+
