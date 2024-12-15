@@ -27,7 +27,6 @@
 #include <GLFW/glfw3.h>
 #include <sys/types.h>
 #include <sys/mman.h>
-#include <filesystem>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdio.h>
@@ -36,17 +35,12 @@
 #include <cassert>
 #include <thread>
 #include <argp.h>
-#include <vector>
-#include "../extern/imgui/backends/imgui_impl_vulkan.h"
-#include "../extern/imgui/backends/imgui_impl_glfw.h"
 #include "../extern/imgui/imgui.h"
 #include "../render/window.h"
-#include "../render/vulkan.h"
 #include "../render/visor.h"
 #include "../utils/generic.h"
 #include "../utils/text.h"
 #include "../utils/log.h"
-#include "../vm/iocommon.h"
 #include "../vm/system.h"
 #include "../vm/core.h"
 #include "../sigil.h"
@@ -87,7 +81,6 @@ static void             popup_export_file();
 // Procedure sent to visor to be threaded
 static sigil::status_t  gui_main_loop();
 static void             gui_prepare_frame(bool is_window_minimized);
-static void             import_fonts(const std::string& fontDir, float fontSize, ImGuiIO& io);
 
 // Clean exit with all subprocedures wrapped
 static void             exit_sigil_tools(sigil::status_t status);
@@ -242,20 +235,15 @@ sigil::status_t gui_main_loop() {
 
         // resize swap chain and determine visibility
         sigil::visor::check_for_swapchain_update(main_window);
+
         auto imgui_draw_data = ImGui::GetDrawData();
         const bool is_minimized = (imgui_draw_data->DisplaySize.x <= 0.0f || imgui_draw_data->DisplaySize.y <= 0.0f);
 
         gui_prepare_frame(is_minimized);
 
-        if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
-            ImGui::UpdatePlatformWindows();
-            ImGui::RenderPlatformWindowsDefault();
-        }
 
-        if (!is_minimized) {
-            frames_presented++;
-            sigil::visor::present_frame(main_window);
-        }
+
+
 
         frames_processed++;
         gui_main_loop_timer.stop();
@@ -274,12 +262,6 @@ sigil::status_t gui_main_loop() {
 // Using Visor, and ImGui to arrange a new frame for rendering
 // Don't use Vulkan directly here
 static void gui_prepare_frame(bool is_window_minimized) {
-    frames_prepared++;
-    main_window->imgui_wd.ClearValue.color.float32[0] = clear_color.x * clear_color.w;
-    main_window->imgui_wd.ClearValue.color.float32[1] = clear_color.y * clear_color.w;
-    main_window->imgui_wd.ClearValue.color.float32[2] = clear_color.z * clear_color.w;
-    main_window->imgui_wd.ClearValue.color.float32[3] = clear_color.w;
-
     // Visor first
     app_status = sigil::visor::new_frame(main_window);
     if (app_status != sigil::VM_OK) exit_sigil_tools(app_status);
@@ -287,6 +269,10 @@ static void gui_prepare_frame(bool is_window_minimized) {
     // Imgui second
     ImGui::NewFrame();
     ImGuiIO &io = ImGui::GetIO();
+    main_window->imgui_wd.ClearValue.color.float32[0] = clear_color.x * clear_color.w;
+    main_window->imgui_wd.ClearValue.color.float32[1] = clear_color.y * clear_color.w;
+    main_window->imgui_wd.ClearValue.color.float32[2] = clear_color.z * clear_color.w;
+    main_window->imgui_wd.ClearValue.color.float32[3] = clear_color.w;
     
     // Main window composition
     ImGui::DockSpaceOverViewport();
@@ -305,8 +291,21 @@ static void gui_prepare_frame(bool is_window_minimized) {
     if (subwindows.demo) subwindow_demo();
     if (subwindows.perf) subwindow_perf();
 
-    // Convert ImGui elements into framedata for visor
+    // Convert ImGui elements into framedata for visor, end preparation
     ImGui::Render();
+    if (!is_window_minimized)
+        sigil::visor::prepare_imgui_drawdata(main_window);
+    
+    if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
+        ImGui::UpdatePlatformWindows();
+        ImGui::RenderPlatformWindowsDefault();
+    }
+
+    if (!is_window_minimized)
+        sigil::visor::present_frame(main_window);
+
+    if (!is_window_minimized)
+        frames_presented++;
 }
 
 // Popups
@@ -477,178 +476,10 @@ static void subwindow_style_manager() {
 }
 
 static void subwindow_options() {
-
+    ImGui::Begin("Text Editor");
+    ImGui::End();
 }
 
 static void subwindow_demo() {
     ImGui::ShowDemoWindow(&subwindows.demo);
 }
-
-
-void import_fonts(const std::string& fontDir, float fontSize, ImGuiIO& io) {
-    namespace fs = std::filesystem;
-    try {
-        std::vector<ImFont*> loadedFonts;
-
-        // Iterate through the directory
-        for (const auto& entry : fs::directory_iterator(fontDir)) {
-            if (entry.is_regular_file() && entry.path().extension() == ".ttf") {
-                const std::string fontPath = entry.path().string();
-                
-                // Load the font
-                ImFont* font = io.Fonts->AddFontFromFileTTF(fontPath.c_str(), fontSize);
-                if (font) {
-                    loadedFonts.push_back(font);
-                    std::cout << "Loaded font: " << fontPath << std::endl;
-                } else {
-                    std::cerr << "Failed to load font: " << fontPath << std::endl;
-                }
-            }
-        }
-
-        if (loadedFonts.empty()) {
-            std::cerr << "No fonts loaded from directory: " << fontDir << std::endl;
-        }
-    } catch (const fs::filesystem_error& e) {
-        std::cerr << "Filesystem error: " << e.what() << std::endl;
-    }
-}
-
-
-
-// sigil::status_t subwindow_prepare() {
-//     VkBool32 res;
-
-//     int w, h;
-//     glfwGetFramebufferSize(main_window->glfw_window, &w, &h);
-
-//     imgui_wd.Surface = main_window->vk_surface;
-
-//     vkGetPhysicalDeviceSurfaceSupportKHR(vkhost->main_gpu(), vkhost->vk_main_q.family, imgui_wd.Surface, &res);
-//     if (res != VK_TRUE) {
-//         fprintf(stderr, "Error no WSI support on physical device 0\n");
-//         exit(-1);
-//     }
-
-//     // Select Surface Format
-//     const VkFormat requestSurfaceImageFormat[] = { VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_B8G8R8_UNORM, VK_FORMAT_R8G8B8_UNORM };
-//     const VkColorSpaceKHR requestSurfaceColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
-//     imgui_wd.SurfaceFormat = ImGui_ImplVulkanH_SelectSurfaceFormat(vkhost->main_gpu(), imgui_wd.Surface, requestSurfaceImageFormat, (size_t)IM_ARRAYSIZE(requestSurfaceImageFormat), requestSurfaceColorSpace);
-
-//     // Create SwapChain, RenderPass, Framebuffer, etc.
-//     IM_ASSERT(main_window->min_image_count >= 2);
-//     ImGui_ImplVulkanH_CreateOrResizeWindow(vkhost->vk_inst, vkhost->main_gpu(), vkhost->vk_dev, &imgui_wd, vkhost->vk_main_q.family, vkhost->vk_allocators, w, h, main_window->min_image_count);
-
-//     IMGUI_CHECKVERSION();
-//     ImGui::CreateContext();
-//     ImGuiIO& io = ImGui::GetIO(); (void)io;
-//     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-//     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
-//     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;         // Enable Docking
-//     io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;       // Enable Multi-Viewport / Platform Windows
-
-//     ImGui::StyleColorsDark();
-//     ImGuiStyle& style = ImGui::GetStyle();
-//     if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
-//         style.WindowRounding = 0.0f;
-//         style.Colors[ImGuiCol_WindowBg].w = 1.0f;
-//     }
-
-//     // Setup Platform/Renderer backends
-//     ImGui_ImplGlfw_InitForVulkan(main_window->glfw_window, true);
-//     ImGui_ImplVulkan_InitInfo init_info = {};
-//     init_info.Instance = vkhost->vk_inst;
-//     init_info.PhysicalDevice = vkhost->main_gpu();
-//     init_info.Device = vkhost->vk_dev;
-//     init_info.QueueFamily = vkhost->vk_main_q.family;
-//     init_info.Queue = vkhost->vk_main_q.queue;
-//     init_info.PipelineCache = vkhost->vk_pipeline_cache;
-//     init_info.DescriptorPool = vkhost->vk_descriptor_pool;
-//     init_info.RenderPass = imgui_wd.RenderPass;
-//     init_info.Subpass = 0;
-//     init_info.MinImageCount = main_window->min_image_count;
-//     init_info.ImageCount = imgui_wd.ImageCount;
-//     init_info.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
-//     init_info.Allocator = vkhost->vk_allocators;
-//     init_info.CheckVkResultFn = sigil::vulkan::check_result;
-    
-//     ImGui_ImplVulkan_Init(&init_info);
-//     io.IniFilename = "/opt/sigil/assets/configs/imgui.ini";
-
-//     import_fonts("/opt/sigil/assets/fonts", 16.0f, io);
-
-//     // ImFont* font = io.Fonts->AddFontFromFileTTF("/opt/sigil/assets/fonts/Inter-VariableFont_slnt,wght.ttf", 16.0f);
-//     // if (font == nullptr) {
-//     //     return sigil::VM_FAILED_ALLOC;
-//     // }
-//     printf("Sigil-Tools: GUI prepared\n");
-//     return sigil::VM_OK;
-// }
-
-
-
-// TODO: replace with prepare frame
-// static void sigil_tools_frame_render() {
-//     VkResult err;
-
-//     VkSemaphore image_acquired_semaphore  = imgui_wd.FrameSemaphores[imgui_wd.SemaphoreIndex].ImageAcquiredSemaphore;
-//     VkSemaphore render_complete_semaphore = imgui_wd.FrameSemaphores[imgui_wd.SemaphoreIndex].RenderCompleteSemaphore;
-//     err = vkAcquireNextImageKHR(vkhost->vk_dev, imgui_wd.Swapchain, UINT64_MAX, image_acquired_semaphore, VK_NULL_HANDLE, &imgui_wd.FrameIndex);
-//     if (err == VK_ERROR_OUT_OF_DATE_KHR || err == VK_SUBOPTIMAL_KHR) {
-//         main_window->swapchain_rebuild = true;
-//         return;
-//     }
-//     sigil::vulkan::check_result(err);
-
-//     ImGui_ImplVulkanH_Frame* fd = &imgui_wd.Frames[imgui_wd.FrameIndex];
-//     {
-//         err = vkWaitForFences(vkhost->vk_dev, 1, &fd->Fence, VK_TRUE, UINT64_MAX);    // wait indefinitely instead of periodically checking
-//         sigil::vulkan::check_result(err);
-
-//         err = vkResetFences(vkhost->vk_dev, 1, &fd->Fence);
-//         sigil::vulkan::check_result(err);
-//     }
-//     {
-//         err = vkResetCommandPool(vkhost->vk_dev, fd->CommandPool, 0);
-//         sigil::vulkan::check_result(err);
-//         VkCommandBufferBeginInfo info = {};
-//         info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-//         info.flags |= VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-//         err = vkBeginCommandBuffer(fd->CommandBuffer, &info);
-//         sigil::vulkan::check_result(err);
-//     }
-//     {
-//         VkRenderPassBeginInfo info = {};
-//         info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-//         info.renderPass = imgui_wd.RenderPass;
-//         info.framebuffer = fd->Framebuffer;
-//         info.renderArea.extent.width = imgui_wd.Width;
-//         info.renderArea.extent.height = imgui_wd.Height;
-//         info.clearValueCount = 1;
-//         info.pClearValues = &imgui_wd.ClearValue;
-//         vkCmdBeginRenderPass(fd->CommandBuffer, &info, VK_SUBPASS_CONTENTS_INLINE);
-//     }
-
-//     // Record dear imgui primitives into command buffer
-//     ImGui_ImplVulkan_RenderDrawData(imgui_draw_data, fd->CommandBuffer);
-
-//     // Submit command buffer
-//     vkCmdEndRenderPass(fd->CommandBuffer);
-//     {
-//         VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-//         VkSubmitInfo info = {};
-//         info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-//         info.waitSemaphoreCount = 1;
-//         info.pWaitSemaphores = &image_acquired_semaphore;
-//         info.pWaitDstStageMask = &wait_stage;
-//         info.commandBufferCount = 1;
-//         info.pCommandBuffers = &fd->CommandBuffer;
-//         info.signalSemaphoreCount = 1;
-//         info.pSignalSemaphores = &render_complete_semaphore;
-
-//         err = vkEndCommandBuffer(fd->CommandBuffer);
-//         sigil::vulkan::check_result(err);
-//         err = vkQueueSubmit(vkhost->vk_main_q.queue, 1, &info, fd->Fence);
-//         sigil::vulkan::check_result(err);
-//     }
-// }

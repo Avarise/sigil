@@ -12,7 +12,6 @@
 #include "../utils/generic.h"
 #include "../vm/system.h"
 #include "vulkan.h"
-#include "visor.h"
 
 using namespace sigil;
 static sigil::vmnode_t *vulkan_node = nullptr;
@@ -43,9 +42,9 @@ bool is_vk_ext_available(const std::vector<VkExtensionProperties> &properties, c
     return false;
 }
 
-vulkan::host_data_t* vulkan::api_handle(sigil::vmnode_t *node) {
-    return vulkan_data;
-}
+// vulkan::host_data_t* vulkan::api_handle(sigil::vmnode_t *node) {
+//     return vulkan_data;
+// }
 
 sigil::status_t setup_vulkan_descriptor_pool() {
     VkResult err;

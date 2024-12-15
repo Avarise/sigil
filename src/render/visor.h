@@ -32,6 +32,8 @@ namespace sigil::visor {
     status_t new_frame(window_t *window);
     status_t render_frame(window_t *window);
     status_t present_frame(window_t *window);
+    status_t prepare_imgui_drawdata(window_t *window);
+    status_t load_font(const std::string& font_path, float font_size);
 
 
     // Renderer API

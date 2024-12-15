@@ -127,10 +127,9 @@ namespace sigil::vulkan {
     sigil::status_t initialize(sigil::vmnode_t *vmsr);
     sigil::vmnode_t probe(sigil::vmnode_t *vmsr);
     sigil::status_t deinitialize();
-    host_data_t* api_handle(sigil::vmnode_t *vmsr);
+    sigil::status_t reset_vulkan();
 
     // Vulkan control calls
-    sigil::status_t reset_vulkan();
     sigil::status_t attach_to_window(sigil::window_t *window);
     sigil::status_t release_window(sigil::window_t *window);
     sigil::status_t select_presentation_mode(sigil::window_t *window, sigil::window_t::presentation_t mode);
@@ -139,6 +138,7 @@ namespace sigil::vulkan {
 
 
     // Deprecated
+    //    host_data_t* api_handle(sigil::vmnode_t *vmsr);
     int attach_window(sigil::window_t *window);
     int attach_scene(sigil::ntt::scene_t *scene);
     int setup_window_for_vk(sigil::window_t *window);
