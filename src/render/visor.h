@@ -1,15 +1,13 @@
 #pragma once
-#include "../engine/runtime.h"
-#include "../utils/math.h"
-#include "../vm/core.h"
-#include "../vm/node.h"
+#include "../core/system.h"
+#include "../core/utils.h"
+#include "graphics.h"
 #include "window.h"
-#include "std.h"
 
 // Visor vmnode
 namespace sigil::visor {
     struct render_channel_t {
-        sigil::sync_data_t sync;
+        sigil::utils::sync_data_t sync;
     };
 
     struct visor_data_t {

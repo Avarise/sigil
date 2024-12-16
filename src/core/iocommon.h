@@ -8,8 +8,7 @@
 #include <asm-generic/errno.h>
 #include <cerrno>
 #include <cstdio>
-#include "core.h"
-#include "node.h"
+#include "system.h"
 
 
 namespace sigil::iocommon {

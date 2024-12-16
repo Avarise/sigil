@@ -15,9 +15,8 @@
 #include <cstdint>
 #include <vector>
 #include <cstdio>
-#include "../vm/core.h"
+#include "../core/system.h"
 #include "window.h"
-#include "../vm/node.h"
 
 // TODO: Remove this dependency, vulkan should not interact with ECS
 #include "../engine/ntt.h"

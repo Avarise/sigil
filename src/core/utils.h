@@ -1,5 +1,61 @@
 #pragma once
 #include <cstdint>
+#include <string>
+#include <chrono>
+
+namespace sigil::utils {
+    struct sync_data_t {
+        uint64_t iters; // Iterations of engine
+        uint32_t target_render_rate; // Render rate in HZ, 0 for unlimited
+        double delta_us; // 10e-6 second delta time 
+        std::chrono::time_point<std::chrono::high_resolution_clock> ts_render_end; // Timestamp of last render end
+    };
+        // Write a format string with arguments into a std::string reference
+    // returns number of bytes written
+    int insert_into_string(std::string &target, const char *format, ...);
+    void print_binary(uint32_t num);
+
+        class exec_timer {
+        public:
+        void start() {
+            start_time_ = std::chrono::high_resolution_clock::now();
+        }
+
+        void stop() {
+            stop_time_ = std::chrono::high_resolution_clock::now();
+        }
+
+        // Get elapsed time in nanoseconds
+        uint64_t ns() const {
+            return static_cast<uint64_t>(
+                std::chrono::duration_cast<std::chrono::nanoseconds>(stop_time_ - start_time_).count()
+            );
+        }
+
+        // Get elapsed time in microseconds
+        uint64_t us() const {
+            return static_cast<uint64_t>(
+                std::chrono::duration_cast<std::chrono::microseconds>(stop_time_ - start_time_).count()
+            );
+        }
+
+        // Get elapsed time in milliseconds
+        uint64_t ms() const {
+            return static_cast<uint64_t>(
+                std::chrono::duration_cast<std::chrono::milliseconds>(stop_time_ - start_time_).count()
+            );
+        }
+
+        private:
+        std::chrono::high_resolution_clock::time_point start_time_;
+        std::chrono::high_resolution_clock::time_point stop_time_;
+    };
+
+
+    void xor_encode(FILE *input, FILE *output, uint32_t key);
+}
+
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>

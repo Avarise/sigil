@@ -1,25 +1,25 @@
-/*
-    Refs
-    vmnodes
-    name
-    status
-    parser objects
-*/
 #pragma once
+/*
+    calls to spawn vmroot node and two t1 nodes: runtime and platform
+    runtime: spawns nodes for worker processes and similar
+    platform: devices config, device info pci/usb etc? 
+*/
+
+#include <cstring>
+#include <cstddef>
 #include <cstdint>
-#include <ctime>
-#include <string>
+#include <cstdio>
 #include <vector>
+#include <string>
+#include <mutex>
+#include <ctime>
+#include <map>
 
 #define VM_NODE_VMROOT "vmroot"
 #define VM_NODE_RUNTIME "runtime"
 #define VM_NODE_PLATFORM "platform"
 #define VM_NODE_INV_NAME "INVALID_NAME_DO_NOT_USE"
 #define VM_NODE_LOOKUP_MAX_DEPTH 32
-
-const char SHARED_MEMORY_NAME[] = "/SigilVM";
-const char SEMAPHORE_NAME[] = "/SigilVM_semaphore";
-const size_t SHARED_MEMORY_SIZE = 0xffffff;       // Adjust size as needed
 
 /* Memory helpers */
 #define HASH_MASK 0xDEADBEEF
@@ -36,7 +36,6 @@ const size_t SHARED_MEMORY_SIZE = 0xffffff;       // Adjust size as needed
 #define BIT(x) ((uint32_t)1 << x)
 #endif /* BIT */
 
-// TODO: Remove deprecated name type
 namespace sigil {
     enum status_t {
         VM_OK,
@@ -199,4 +198,105 @@ namespace sigil {
         printf("VM Status: %s (%d), exiting\n", sigil::status_t_cstr(status), status);
         std::exit(0);
     }
+
+        typedef status_t(*node_deinit_ft)(void); 
+
+
+    struct vmnode_t : reference_t {
+        sigil::name_t name;
+        vmnode_t *master_node;
+        std::vector<vmnode_t*> subnodes;
+        uint8_t depth_at_tree;
+        std::mutex node_mutex;
+
+        struct node_data_t {
+            void *data;
+            //node_deinit_ft data_cleanup;
+            void (*data_cleanup)(void);
+        } node_data;
+
+        sigil::status_t set_data(void *data, void (*data_cleanup)(void)) {
+            if (!data || !data_cleanup) return sigil::VM_ARG_NULL;
+            this->node_data.data = data;
+            this->node_data.data_cleanup = data_cleanup;
+            return sigil::VM_OK;
+        }
+
+        vmnode_t();
+        ~vmnode_t();
+        vmnode_t(const char *name);
+        vmnode_t(const sigil::name_t name);
+        sigil::status_t deinit();
+        sigil::status_t deinit_self();
+        sigil::status_t deinit_subnodes();
+        vmnode_t* search(const char *name, int depth_current, int depth_max);
+        vmnode_t* spawn_subnode();
+        vmnode_t* spawn_subnode(const char *name);
+        vmnode_t* peek_subnode(const char *name, int depth_max);
+        vmnode_t* peek_master_node();
+        vmnode_t* get_subnode(const char *name, int depth_max);
+        vmnode_t* get_master_node();
+        vmnode_t* get_root_node();
+        void release();
+        std::string get_node_name();
+        std::string get_node_name_tree();
+        void print_nodeinfo();
+        void print_nodemem();
+    };
+}
+
+
+
+
+namespace sigil::system {
+    struct platform_data_t {
+        uint32_t hw_cores;
+        std::string hostname;
+        uint8_t debug_mode;
+        status_t refresh();
+    };
+
+    struct runtime_data_t {
+        uint32_t num_workers;
+        uint8_t debug_mode;
+    };
+
+    struct vmroot_data_t {
+        std::map<std::string, std::string> init_params;
+        uint32_t cookie;
+        bool fakeroot = false;
+        bool global_debug = false;
+    };
+
+    // IPC / Lifetime API
+    sigil::status_t initialize(int argc, const char *argv[]);
+    sigil::status_t shutdown();
+    // Remove shared mem
+    sigil::status_t flushvm();
+    // Returns handle to active root if found any, nullptr otherwise
+    sigil::vmnode_t* probe_root();
+    // Create new VM root, pass argc/argv here
+    sigil::vmnode_t* spawn_root(int argc, const char *argv[]);
+    // Creates new root but keeps lifetime non-ipc, so might be used for mocking/assert testing
+    sigil::vmnode_t* spawn_fakeroot(int argc, const char *argv[]);
+    // Explains why it could not shutdown in return value
+    sigil::status_t invalidate_root();     
+
+    // Other calls
+    // Validation: VM_OK if referenced node is valid root
+    sigil::status_t validate_root(sigil::vmnode_t *node);
+    // Execute generic command
+    sigil::status_t exec(std::string &payload);
+    // Cli handler is a simple looped text prompt 
+    sigil::status_t start_cli_handler(sigil::vmnode_t *vmsr);
+    std::map<std::string, std::string>* get_init_params();
+    sigil::status_t shutdown_node(sigil::vmnode_t *target);
+ 
+    // Extension loaders
+    sigil::status_t load_all_extensions();
+    sigil::status_t load_http_server_extensions();
+    sigil::status_t load_game_engine_extensions();
+    sigil::status_t load_minimal_extensions();
+    sigil::status_t start_console();
+    sigil::status_t wait_for_console();
 }

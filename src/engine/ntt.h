@@ -11,10 +11,11 @@
 #include <cstdint>
 #include <cstdio>
 #include <vector>
-#include "../vm/core.h"
-#include "../vm/node.h"
+#include "../core/system.h"
+#include "../core/utils.h"
 
 namespace sigil::ntt {
+    
     struct entity_t {
         uint32_t uuid;
     };
@@ -33,6 +34,11 @@ namespace sigil::ntt {
         bool paused;
     } scene_t;
     
+    struct engine_t : utils::sync_data_t {
+        sigil::ntt::scene_t *target_scene;
+
+        void sync_engine();
+    };
     struct host_data_t {
         std::vector<scene_t*> scenes;
         uint32_t num_engines;

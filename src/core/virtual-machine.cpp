@@ -1,5 +1,3 @@
-#include "sigil.h"
-
 void sigil::console_subprogram() {
     status_t status = VM_OK;
 

@@ -4,7 +4,7 @@
 #include <vulkan/vulkan.h>
 #include <GLFW/glfw3.h>
 #include <cstring>
-#include "../vm/core.h"
+#include "../core/system.h"
 #include "../extern/imgui/backends/imgui_impl_vulkan.h"
 #include "../extern/imgui/backends/imgui_impl_glfw.h"
 

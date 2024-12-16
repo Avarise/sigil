@@ -38,12 +38,7 @@
 #include "../extern/imgui/imgui.h"
 #include "../render/window.h"
 #include "../render/visor.h"
-#include "../utils/generic.h"
-#include "../utils/text.h"
-#include "../utils/log.h"
-#include "../vm/system.h"
-#include "../vm/core.h"
-#include "../sigil.h"
+#include "../core/virtual-machine.h"
 
 #define APP_USE_VULKAN_DEBUG_REPORT
 #define APP_USE_UNLIMITED_FRAME_RATE

@@ -1,4 +1,5 @@
-#include "core.h"
+#pragma once
+#include "system.h"
 
 namespace sigil {
     namespace parser {

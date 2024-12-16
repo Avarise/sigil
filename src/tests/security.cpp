@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include "../vm/system.h"
+#include "../core/system.h"
 
 class SecuritySuite : public ::testing::Test {
 protected:
