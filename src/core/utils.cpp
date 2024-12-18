@@ -1,4 +1,6 @@
 #include "utils.h"
+#include <cstdarg>
+#include <memory>
 
 int sigil::utils::insert_into_string(std::string &target, const char *format, ...) {
     // Start with a large buffer for initial formatting

@@ -35,7 +35,7 @@ namespace sigil::visor {
 
 
     // Renderer API
-    status_t create_render_channel(window_t *window, ntt::scene_t *scene);
+    //status_t create_render_channel(window_t *window, ntt::scene_t *scene);
     status_t destroy_render_channel(render_channel_t *ch);
     // Stop/start render channel. Channel state is separate from scene;
     // Stopping scene stops physics etc, stopping channel freezes channel on the last frame

@@ -1,21 +1,90 @@
+/*
+    Collection of misc functions
+    Dependency for system.h
+*/
 #pragma once
 #include <cstdint>
-#include <string>
+#include <cstdlib>
+#include <cstring>
+#include <cstdio>
 #include <chrono>
+#include <string>
+#include <cmath>
 
-namespace sigil::utils {
+#define MAX(A, B)               ((A) > (B) ? (A) : (B))
+#define MIN(A, B)               ((A) < (B) ? (A) : (B))
+#define BETWEEN(X, A, B)        ((A) <= (X) && (X) <= (B))
+
+/* Memory helpers */
+#define HASH_MASK 0xDEADBEEF
+#define MSIZE_4K 4096
+#define MMASK_4K 0xFFFFF000
+#define MSIZE_PAGE 512
+#define MMASK_PAGE 0xFFFFFE00
+#define MSIZE_STRING 64
+#define MMASK_STRING 0xFFFFFFC0
+#define MSIZE_CHUNK 16
+#define MMASK_CHUNK 0xFFFFFFF0
+#define MAX_THREADS 128
+#ifndef BIT
+#define BIT(x) ((uint32_t)1 << x)
+#endif /* BIT */
+
+namespace sigil {
+    enum status_t {
+        VM_OK,
+        VM_ALREADY_EXISTS,
+        VM_BUSY,
+        VM_LOCKED,
+        VM_FAILED,
+        VM_NOT_FOUND,
+        VM_FAILED_ALLOC,
+        VM_ARG_NULL,
+        VM_ARG_INVALID,
+        VM_NOT_SUPPORTED,
+        VM_INVALID_ROOT,
+        VM_SYSTEM_SHUTDOWN,
+        VM_NOT_IMPLEMENTED,
+        SWAPCHAIN_REBUILDING,
+    };
+
+    inline const char* status_t_cstr(status_t status);
+    // Timers
+    struct sync_data_t;
+
+    // Various
+    // Write a format string with arguments into a std::string reference
+    // returns number of bytes written
+    int insert_into_string(std::string &target, const char *format, ...);
+    void print_binary(uint32_t num);
+    void xor_encode(FILE *input, FILE *output, uint32_t key);
+
     struct sync_data_t {
         uint64_t iters; // Iterations of engine
         uint32_t target_render_rate; // Render rate in HZ, 0 for unlimited
         double delta_us; // 10e-6 second delta time 
         std::chrono::time_point<std::chrono::high_resolution_clock> ts_render_end; // Timestamp of last render end
     };
-        // Write a format string with arguments into a std::string reference
-    // returns number of bytes written
-    int insert_into_string(std::string &target, const char *format, ...);
-    void print_binary(uint32_t num);
 
-        class exec_timer {
+        struct name_t {
+        std::string value;
+    };
+
+    // System reporting
+    struct memstat_t;
+    void get_memstats(memstat_t &result);
+    void print_memstats(const memstat_t &result);
+    void print_mem_report();
+    struct memstat_t {
+        unsigned long size, resident, share, text, lib, data, dt;
+    };
+
+    // Byte viewer, chuck = 16 bytes
+    void memview_chunk(const void *mem_start);
+    void memview(const void *mem_start, uint32_t num_bytes, bool align);
+    
+
+    class exec_timer {
         public:
         void start() {
             start_time_ = std::chrono::high_resolution_clock::now();
@@ -51,21 +120,6 @@ namespace sigil::utils {
         std::chrono::high_resolution_clock::time_point stop_time_;
     };
 
-
-    void xor_encode(FILE *input, FILE *output, uint32_t key);
-}
-
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <cmath>
-
-#define MAX(A, B)               ((A) > (B) ? (A) : (B))
-#define MIN(A, B)               ((A) < (B) ? (A) : (B))
-#define BETWEEN(X, A, B)        ((A) <= (X) && (X) <= (B))
-
-namespace sigil {
     inline uint32_t random_u32_scoped(uint32_t min, uint32_t max) {
         uint32_t num = 0;
         num = ((uint32_t)std::rand() % (max + 1)) + min;
@@ -76,6 +130,45 @@ namespace sigil {
         int32_t num = 0;
         num = ((int32_t)std::rand() % (max + 1)) + min;
         return num;
+    }
+
+        inline void u32swap(uint32_t a, uint32_t b){
+#       ifndef USE_NO_COPY_SWAP
+        uint32_t temp = a;
+        a = b;
+        b = temp;
+#       else /* USE COPY SWAP*/
+        a = a ^ b;
+        b = a ^ b;
+        a = a ^ b;
+#       endif
+    }
+
+
+    inline void sleep_ms(uint32_t ms) {
+        if (ms == 0) return;
+
+#       ifdef __linux__
+        timespec ts;
+        ts.tv_sec = (ms / 1000);
+        ts.tv_nsec = (ms % 1000) * 10e6;
+
+        int res = 0;
+        do {
+            res = nanosleep(&ts, &ts);
+        } while (res && errno == EINTR);
+
+#       else
+        return;
+#       endif
+    }
+
+    inline void boolflip(bool &val) {
+        val ^= 1;
+    }
+
+    inline void bitflip(uint32_t &bitarray, int bitidx) {
+        bitarray ^= 1 << bitidx;
     }
 
     struct v3_t {
@@ -167,5 +260,28 @@ namespace sigil {
         if (n1 > n2) return get_gcd(n1 % n2, n2);
         if (n2 > n1) return get_gcd(n1, n1 % n2);
         return n1;
+    }
+
+
+    inline void exit(sigil::status_t status) {
+        printf("VM Status: %s (%d), exiting\n", sigil::status_t_cstr(status), status);
+        std::exit(0);
+    }
+}
+
+inline const char* sigil::status_t_cstr(sigil::status_t status) {
+    switch (status) {
+        case VM_OK: return "VM_OK";
+        case VM_BUSY: return "VM_BUSY";
+        case VM_LOCKED: return "VM_LOCKED";
+        case VM_FAILED: return "VM_FAILED";
+        case VM_ARG_NULL: return "VM_ARG_NULL";
+        case VM_NOT_FOUND: return "VM_NOT_FOUND";
+        case VM_FAILED_ALLOC: return "VM_FAILED_ALLOC";
+        case VM_INVALID_ROOT: return "VM_INVALID_ROOT";
+        case VM_NOT_SUPPORTED: return "VM_NOT_SUPPORTED";
+        case VM_ALREADY_EXISTS: return "VM_ALREADY_EXISTS";
+        case VM_SYSTEM_SHUTDOWN: return "VM_SYSTEM_SHUTDOWN";
+        default: return "VM_UNKNOWN";
     }
 }

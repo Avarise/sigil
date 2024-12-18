@@ -1,12 +1,12 @@
 #pragma once
-#include <thread>
 #include <vulkan/vulkan_core.h>
 #include <vulkan/vulkan.h>
 #include <GLFW/glfw3.h>
 #include <cstring>
-#include "../core/system.h"
+#include <thread>
 #include "../extern/imgui/backends/imgui_impl_vulkan.h"
 #include "../extern/imgui/backends/imgui_impl_glfw.h"
+#include "../core/system.h"
 
 namespace sigil {
     struct window_frame_t {
