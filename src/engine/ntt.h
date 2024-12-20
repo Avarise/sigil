@@ -15,7 +15,6 @@
 #include "../core/utils.h"
 
 namespace sigil::ntt {
-    
     struct entity_t {
         uint32_t uuid;
     };
@@ -39,20 +38,9 @@ namespace sigil::ntt {
 
         void sync_engine();
     };
-    struct host_data_t {
-        std::vector<scene_t*> scenes;
-        uint32_t num_engines;
-    };
-
-    struct store_data_t {
-        //std::vector<sigil::dynamic_mesh_t> dynamic_mesh_store;
-        //std::vector<sigil::static_mesh_t> static_mesh_store;
-        std::vector<sigil::name_t> name_store;
-    };
 
     // VM Tree API
-    sigil::status_t initialize(sigil::vmnode_t *vmsr);
-    sigil::vmnode_t probe(sigil::vmnode_t *vmsr);
+    sigil::status_t initialize();
     sigil::status_t deinitialize();
 
     scene_t *spawn_scene();

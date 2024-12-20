@@ -1,6 +1,6 @@
 #include <cstdlib>
 #include <cstring>
-#include "../utils/generic.h"
+#include "utils.h"
 
 int main(int argc, char *argv[]) {
     if (argc != 3) {
@@ -8,18 +8,18 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    char *key_str = strchr(argv[2], '=');
     char *path = strchr(argv[1], '=');
-    char *keyStr = strchr(argv[2], '=');
 
-    if (!path || !keyStr) {
+    if (!path || !key_str) {
         fprintf(stderr, "Error: Invalid arguments\n");
         return 1;
     }
 
+    key_str++;
     path++;
-    keyStr++;
 
-    uint32_t key = (uint32_t)strtoul(keyStr, NULL, 16);
+    uint32_t key = (uint32_t)strtoul(key_str, NULL, 16);
 
     FILE *input = fopen(path, "rb");
     if (!input) {
@@ -27,17 +27,17 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    char outputPath[512];
-    snprintf(outputPath, sizeof(outputPath), "%s.enc", path);
+    char output_path[512];
+    snprintf(output_path, sizeof(output_path), "%s.enc", path);
 
-    FILE *output = fopen(outputPath, "wb");
+    FILE *output = fopen(output_path, "wb");
     if (!output) {
         perror("Error opening output file");
         fclose(input);
         return 1;
     }
 
-    sigil::utils::xor_encode(input, output, key);
+    sigil::xor_encode(input, output, key);
 
     fclose(input);
     fclose(output);

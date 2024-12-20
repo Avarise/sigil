@@ -17,7 +17,6 @@
 #include <cstdio>
 
 #include "system.h"
-#include "window.h"
 
 namespace sigil::vulkan {
     struct vk_qinfo {

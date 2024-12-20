@@ -5,7 +5,10 @@
 #pragma once
 #include <cstring>
 #include <cstdint>
+#include <thread>
 #include <vector>
+#include "imgui_impl_vulkan.h"
+#include "imgui_impl_glfw.h"
 #include "utils.h"
 
 namespace sigil::graphics {

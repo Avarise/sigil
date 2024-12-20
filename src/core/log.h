@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdarg>
 #include <cstdio>
+#include <string>
 #include <ctime>
 
 #define SIGIL_LOG_BUFF_SIZE 2048

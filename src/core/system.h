@@ -36,7 +36,7 @@ namespace sigil {
         REF_ENGINE,
     };
 
-    inline const char* reference_type_t_cstr(reference_type_t reftype);
+    inline const char* reference_type_to_cstr(reference_type_t reftype);
 
     struct reference_t {
         reference_type_t type;
@@ -119,19 +119,19 @@ namespace sigil {
 
     inline void reference_t::print_reference_info() {
         printf("sigil: Reference ID: %lu, reference count: %u, type: %s, location: %p\n",
-                        this->id, this->refcount, sigil::reference_type_t_cstr(this->type), this);
+                        this->id, this->refcount, sigil::reference_type_to_cstr(this->type), this);
     }
 
     inline const char* reference_type_t_cstr(sigil::reference_type_t type) {
-        if (type == REF_VMNODE) return "REF_VMNODE";
-        if (type == REF_DEVICE) return "REF_DEVICE";
-        if (type == REF_EVENT) return "REF_EVENT";
-        if (type == REF_FILE) return "REF_FILE";
-        if (type == REF_SERVICE) return "REF_SERVICE";
         if (type == REF_GENERIC_MODULE) return "REF_GENERIC_MODULE";
         if (type == REF_WORKTHREAD) return "REF_WORKTHREAD";
         if (type == REF_WORKQUEUE) return "REF_WORKQUEUE";
+        if (type == REF_SERVICE) return "REF_SERVICE";
+        if (type == REF_DEVICE) return "REF_DEVICE";
         if (type == REF_ENGINE) return "REF_ENGINE";
+        if (type == REF_VMNODE) return "REF_VMNODE";
+        if (type == REF_EVENT) return "REF_EVENT";
+        if (type == REF_FILE) return "REF_FILE";
         return "REF_UNKNOWN";
     }
 

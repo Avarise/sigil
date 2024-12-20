@@ -50,7 +50,7 @@ namespace sigil {
         VM_SWAPCHAIN_REBUILDING,
     };
 
-    inline const char* status_t_cstr(status_t status);
+    inline const char* status_to_cstr(status_t status);
     // Timers
     struct sync_data_t;
 
@@ -68,7 +68,7 @@ namespace sigil {
         std::chrono::time_point<std::chrono::high_resolution_clock> ts_render_end; // Timestamp of last render end
     };
 
-        struct name_t {
+    struct name_t {
         std::string value;
     };
 
@@ -266,12 +266,12 @@ namespace sigil {
 
 
     inline void exit(sigil::status_t status) {
-        printf("VM Status: %s (%d), exiting\n", sigil::status_t_cstr(status), status);
+        printf("VM Status: %s (%d), exiting\n", sigil::status_to_cstr(status), status);
         std::exit(0);
     }
 }
 
-inline const char* sigil::status_t_cstr(sigil::status_t status) {
+inline const char* sigil::status_to_cstr(sigil::status_t status) {
     switch (status) {
         case VM_OK: return "VM_OK";
         case VM_BUSY: return "VM_BUSY";

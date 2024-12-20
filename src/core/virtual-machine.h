@@ -12,50 +12,18 @@ namespace sigil::virtual_machine {
     status_t run_command(sigil::parser::command_t &command);
     status_t add_node(vmnode_t *node /*start, stop*/ );
     status_t remove_node(vmnode_t *node);
+    status_t is_active();
     status_t flush();
     status_t reset();
+
+    status_t load_ntt();
+    status_t load_visor();
+    status_t load_vulkan();
+    status_t load_station();
+    status_t load_iocommon();
     void console_subprogram();
 }
 
-#   ifdef __esp8266__
-    class esp8266_tracker {
-    private:
-        uint32_t start_cycles = 0;
-        uint32_t stop_cycles = 0;
-        const char* func_name;
-
-        uint32_t get_current_cycles() {
-            uint32_t cycles = 0;
-            asm volatile ("rsr %0, CCOUNT" : "=r"(cycles));
-            return cycles;
-        }
-
-    public:
-        esp8266_tracker(const char* name = __PRETTY_FUNCTION__)
-            : func_name(name) {}
-
-        void start() {
-            start_cycles = get_current_cycles();
-        }
-
-        void stop() {
-            stop_cycles = get_current_cycles();
-        }
-
-        uint32_t elapsed_cycles() const {
-            return stop_cycles - start_cycles;
-        }
-
-        uint32_t millis() const {
-            return (elapsed_cycles() / (ESP8266_CLOCK_SPEED / 1000));
-        }
-
-        uint32_t micros() const {
-            return (elapsed_cycles() / (ESP8266_CLOCK_SPEED / 1000000));
-        }
-
-        void show() const {
-            printf("%s measured %u ms (%u CPU cycles)\n", func_name, millis(), elapsed_cycles());
-        }
-    };
-#   endif
+namespace sigil {
+    void exit(status_t status);
+}

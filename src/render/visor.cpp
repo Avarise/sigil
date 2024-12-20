@@ -6,6 +6,15 @@
 #include "../utils/generic.h"
 #include "../vm/system.h"
 
+    struct visor_data_t {
+        std::vector<render_channel_t> render_channels;
+        std::vector<sigil::graphics::window_t*> windows;
+        bool glfw_initialized = false;
+        visor_data_t();
+        ~visor_data_t();
+        status_t soft_init_glfw();
+    };
+
 static sigil::vmnode_t *visor_node = nullptr;
 static sigil::visor::visor_data_t *visor_data = nullptr;
 

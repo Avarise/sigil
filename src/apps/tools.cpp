@@ -20,6 +20,7 @@
         Clear tempdata and cache of SigilVM
 */
 
+#include "utils.h"
 #define GLFW_INCLUDE_NONE
 #define GLFW_INCLUDE_VULKAN
 
@@ -35,11 +36,11 @@
 #include <cassert>
 #include <thread>
 #include <argp.h>
-#include "../extern/imgui/imgui.h"
-#include "../render/window.h"
-#include "../render/visor.h"
-#include "../core/virtual-machine.h"
-#include "../core/log.h"
+#include "virtual-machine.h"
+#include "graphics.h"
+#include "imgui.h"
+#include "visor.h"
+#include "log.h"
 #define APP_USE_VULKAN_DEBUG_REPORT
 #define APP_USE_UNLIMITED_FRAME_RATE
 #ifdef _DEBUG
@@ -98,8 +99,8 @@ std::string command_input;      // command to be executed via terminal
 std::string output_buffer;      // output combined for many source like terminal or debug
 
 static struct {
-    std::thread *dwm;
     std::thread *console;
+    std::thread *dwm;
     std::thread *gui;
 } tools_threads {0};
 
@@ -112,7 +113,7 @@ ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 // sigil::virtual_machine *virtual_machine = nullptr;
 const char program_name[] = "SigilVM Tools";
 sigil::status_t app_status = sigil::VM_OK;
-sigil::window_t *main_window = nullptr;
+sigil::graphics::window_t *main_window = nullptr;
 sigil::memstat_t mem_usage;
 uint32_t frames_presented = 0;
 uint32_t frames_processed = 0;
@@ -144,16 +145,14 @@ int main(int argc, const char **argv) {
 // Subcommands
 void subcommand_flush_vm() {
     printf("sigil-tools: Flushing SigilVM\n");
-    app_status = sigil::system::invalidate_root();
+    app_status = sigil::virtual_machine::flush();
     exit_sigil_tools(app_status);
 }
 
 void subcommand_console() {
-    tools_threads.console = new std::thread(sigil::console_subprogram);
+    tools_threads.console = new std::thread(sigil::virtual_machine::console_subprogram);
 
-    // Not usable since new throws, but keeping it for future
-    if (tools_threads.console == nullptr) 
-        exit_sigil_tools(sigil::VM_FAILED_ALLOC);
+    if (tools_threads.console == nullptr) exit_sigil_tools(sigil::VM_FAILED_ALLOC);
 }
 
 void subcommand_dwm() {
@@ -165,23 +164,20 @@ void subcommand_dwm() {
 }
 
 void subcommand_gui() {
-    if (virtual_machine == nullptr) exit_sigil_tools(sigil::VM_INVALID_ROOT);
+    app_status = sigil::virtual_machine::is_active();
+    if (app_status != sigil::VM_OK) exit_sigil_tools(app_status);
 
-    // First start needed APIs
-    if ((app_status = virtual_machine->start_api_visor()) != sigil::VM_OK) {
-        printf("sigil-tools: failed to initialize Visor Renderer\n");
-        exit_sigil_tools(app_status);
-    }
+    app_status = sigil::virtual_machine::load_vulkan();
+    if (app_status != sigil::VM_OK) exit_sigil_tools(app_status);
 
-    if ((app_status = virtual_machine->start_api_vulkan()) != sigil::VM_OK) {
-        printf("sigil-tools: failed to initialize Vulkan\n");
-        exit_sigil_tools(app_status);
-    }
+    app_status = sigil::virtual_machine::load_visor();
+    if (app_status != sigil::VM_OK) exit_sigil_tools(app_status);
+
 
     // TODO: Prepare ImGui here, to minimize abstraction within modules
     // Load fonts
-
     main_window = sigil::visor::spawn_window(program_name);
+
     if (main_window == nullptr) {
         printf("sigil-tools: could not acquire window\n");
         app_status = sigil::VM_FAILED_ALLOC;
@@ -387,10 +383,8 @@ void popup_import_file() {
 static void exit_sigil_tools(sigil::status_t st) {
     //sigil::events::event_t *shutdown = sigil::events::peek(sigil::runtime::SHUTDOWN);
     //sigil::events::trigger(shutdown);
-    virtual_machine->deinitialize();
-    delete virtual_machine;
-    virtual_machine = nullptr;
-    printf("sigil-tools: exiting -> %s\n", sigil::status_t_cstr(st));
+    sigil::virtual_machine::deinitialize();
+    printf("sigil-tools: exiting -> %s\n", sigil::status_to_cstr(st));
     exit(0);
 }
 

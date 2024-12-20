@@ -4,6 +4,17 @@
 
 using namespace sigil;
 
+    struct host_data_t {
+        std::vector<scene_t*> scenes;
+        uint32_t num_engines;
+    };
+
+    struct store_data_t {
+        //std::vector<sigil::dynamic_mesh_t> dynamic_mesh_store;
+        //std::vector<sigil::static_mesh_t> static_mesh_store;
+        std::vector<sigil::name_t> name_store;
+    };
+
 static sigil::vmnode_t *ntt_host_node = nullptr;
 static sigil::vmnode_t *ntt_store_node = nullptr;
 static ntt::host_data_t *ntt_host_data = nullptr;

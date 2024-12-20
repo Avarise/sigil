@@ -1,6 +1,7 @@
 #pragma once
-#include "../core/system.h"
-#include "window.h"
+#include "graphics.h"
+#include "system.h"
+#include "ntt.h"
 
 // Visor vmnode
 namespace sigil::visor {
@@ -8,43 +9,30 @@ namespace sigil::visor {
         sigil::sync_data_t sync;
     };
 
-    struct visor_data_t {
-        std::vector<render_channel_t> render_channels;
-        std::vector<sigil::window_t*> windows;
-        bool glfw_initialized = false;
-        visor_data_t();
-        ~visor_data_t();
-        status_t soft_init_glfw();
-    };
-    
-
-    // Virtual machine API
-    status_t initialize(sigil::vmnode_t *vmsr);
-    vmnode_t probe(sigil::vmnode_t *vmsr);
+    // VM Tree controls
+    status_t initialize();
     status_t deinitialize();
 
-    status_t prepare_for_imgui(sigil::window_t *window);
-    status_t check_for_swapchain_update(sigil::window_t *window);
-    status_t new_frame(window_t *window);
-    status_t render_frame(window_t *window);
-    status_t present_frame(window_t *window);
-    status_t prepare_imgui_drawdata(window_t *window);
-    status_t load_font(const std::string& font_path, float font_size);
-
-
-    // Renderer API
-    //status_t create_render_channel(window_t *window, ntt::scene_t *scene);
-    status_t destroy_render_channel(render_channel_t *ch);
-    // Stop/start render channel. Channel state is separate from scene;
-    // Stopping scene stops physics etc, stopping channel freezes channel on the last frame
+    // Renderer
+    status_t create_render_channel(sigil::graphics::window_t *window, ntt::scene_t *scene);
     status_t start_render_channel(render_channel_t *ch);
     status_t stop_render_channel(render_channel_t *ch);
+    status_t destroy_render_channel(render_channel_t *ch);
+    
+    // Window controls
+    status_t check_for_swapchain_update(sigil::graphics::window_t *window);
+    status_t prepare_imgui_drawdata(sigil::graphics::window_t *window);
+    status_t prepare_for_imgui(sigil::graphics::window_t *window);
+    // Deprecated
+    sigil::graphics::window_t* spawn_window(const char *window_name); //Returns handle
+    status_t present_window(sigil::graphics::window_t *window);
+    status_t destroy_window(sigil::graphics::window_t *window);
+    sigil::graphics::window_t* get_window(int index); //Returns handle
 
-    // Create and destroy windows via active render backend
-    // Currently, it is limited to Vulkan only.
-    window_t* spawn_window(const char *window_name); //Returns handle
-    window_t* get_window(int index); //Returns handle
-    status_t destroy_window(window_t *window);
-    status_t present_window(window_t *window);
+    // Utils
+    status_t load_font(const std::string& font_path, float font_size);
+    status_t new_frame(sigil::graphics::window_t *window);
+    status_t render_frame(sigil::graphics::window_t *window);
+    status_t present_frame(sigil::graphics::window_t *window);
 }
 
