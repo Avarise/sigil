@@ -39,7 +39,7 @@
 #include "../render/window.h"
 #include "../render/visor.h"
 #include "../core/virtual-machine.h"
-
+#include "../core/log.h"
 #define APP_USE_VULKAN_DEBUG_REPORT
 #define APP_USE_UNLIMITED_FRAME_RATE
 #ifdef _DEBUG
@@ -109,7 +109,7 @@ static struct text_editor_t {
 
 // SigilVM and auxiliary variable
 ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
-sigil::virtual_machine_t *virtual_machine = nullptr;
+// sigil::virtual_machine *virtual_machine = nullptr;
 const char program_name[] = "SigilVM Tools";
 sigil::status_t app_status = sigil::VM_OK;
 sigil::window_t *main_window = nullptr;

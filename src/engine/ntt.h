@@ -34,7 +34,7 @@ namespace sigil::ntt {
         bool paused;
     } scene_t;
     
-    struct engine_t : utils::sync_data_t {
+    struct engine_t : sync_data_t {
         sigil::ntt::scene_t *target_scene;
 
         void sync_engine();

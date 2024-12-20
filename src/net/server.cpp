@@ -1,6 +1,9 @@
-#include <cerrno>
 #include "server.h"
-#include "../vm/system.h"
+
+
+    struct vmwebhost_data_t {
+        // Data for server hosting and port mgmt
+    };
 
 using namespace sigil;
 static sigil::vmnode_t *vmwebhost_node = nullptr;

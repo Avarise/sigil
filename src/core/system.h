@@ -69,19 +69,12 @@ namespace sigil {
         std::vector<vmnode_t*> subnodes;
         uint8_t depth_at_tree;
         std::mutex node_mutex;
+        // Raw pointer to whatever a given node deems relevant
+        void *data;
 
-        struct node_data_t {
-            void *data;
-            //node_deinit_ft data_cleanup;
-            void (*data_cleanup)(void);
-        } node_data;
-
-        sigil::status_t set_data(void *data, void (*data_cleanup)(void)) {
-            if (!data || !data_cleanup) return sigil::VM_ARG_NULL;
-            this->node_data.data = data;
-            this->node_data.data_cleanup = data_cleanup;
-            return sigil::VM_OK;
-        }
+        // References to headers
+        status_t (*start)(void);
+        status_t (*stop)(void);
 
         vmnode_t();
         ~vmnode_t();
@@ -143,6 +136,7 @@ namespace sigil {
     }
 
     typedef status_t(*node_deinit_ft)(void); 
+
 }
 
 inline std::string sigil::reference_t::get_reference_info_string() {

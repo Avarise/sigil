@@ -5,8 +5,13 @@
 
 using namespace sigil;
 
+    struct iodata_t {
+        //std::vector<sigil::window_t*> windows;
+        //bool glfw_initialized = false;
+    };
+
 static sigil::vmnode_t *iocommon_node = nullptr;
-static iocommon::iodata_t *iocommon_data = nullptr;
+static iodata_t *iocommon_data = nullptr;
 
 static void cleanup_iocommon_data() {
     if (!iocommon_node) return;

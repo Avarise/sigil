@@ -1,3 +1,5 @@
+#include "graphics.h"
+
 #include "window.h"
 #include "../vm/core.h"
 

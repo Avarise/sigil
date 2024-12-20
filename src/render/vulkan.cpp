@@ -3,15 +3,45 @@
 #include <GLFW/glfw3.h>
 #include <cassert>
 #include <cstddef>
-#include <cassert>
 #include <cstdint>
-#include <cerrno>
-#include <cstdio>
-#include <cstdio>
 #include <vector>
-#include "../utils/generic.h"
-#include "../vm/system.h"
+#include "system.h"
 #include "vulkan.h"
+
+
+    struct host_data_t {
+        bool compute_mode;
+        // Number of physical devices found and registered
+        uint32_t num_phys, num_registered;
+        // Vector of all physical devices found
+        std::vector<VkPhysicalDevice> phy_dev_all;
+        // Use phy at 0 as active GPU, and other indeces as aux GPUs
+        std::vector<VkPhysicalDevice> phy_dev_registered;
+        // Vulkan instance
+        VkInstance vk_inst;
+        // Extensions loaded for vulkan
+        std::vector<const char*> vk_inst_ext;
+        // Logical device for Vulkan
+        VkDevice vk_dev;
+        // Vulkan command queues and other control structures
+        vk_queue vk_main_q, vk_graphics_q, vk_compute_q;
+        VkPipelineCache vk_pipeline_cache;
+        VkAllocationCallbacks* vk_allocators;
+        VkDebugReportCallbackEXT vk_dbg_callback_ext;
+        VkDescriptorPool vk_descriptor_pool;
+
+
+        bool has_gpu() {
+            if (phy_dev_registered.size() > 0) return true;
+            return false;
+        }
+
+        VkPhysicalDevice main_gpu() {
+            if (has_gpu()) return phy_dev_registered.at(0);
+            return nullptr;
+        }
+
+    };
 
 using namespace sigil;
 static sigil::vmnode_t *vulkan_node = nullptr;

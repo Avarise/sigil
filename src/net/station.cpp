@@ -1,18 +1,42 @@
-#include <cstdio>
-#include "../vm/system.h"
+#include "system.h"
+#include "utils.h"
+#include "virtual-machine.h"
 #include "station.h"
 
-using namespace sigil;
-
 static sigil::vmnode_t *station_node = nullptr;
-static station::station_data_t *station_data = nullptr;
 
-void cleanup_station_data() {
-    if (!station_node) return;
-    if (!station_data) return;
+static struct station_data_t {
+    std::vector<sigil::station::wifi_entry_t> networks_found;
+    std::map<std::string, int> networks_name_map;
+    station_data_t() {memset((void*)this, 0, sizeof(*this));}
+} *station_data = nullptr;
+
+sigil::status_t  sigil::station::start() {
+    sigil::vmnode_t* vmsr = virtual_machine::get_root_node();
+    if (!vmsr) return sigil::VM_ARG_NULL;
+
+    sigil::vmnode_t* platform = virtual_machine::get_platform_node();
+    if (!vmsr) return sigil::VM_ARG_NULL;
+    
+    station_node = platform->spawn_subnode("station");
+    if (!station_node) return sigil::VM_FAILED_ALLOC;
+
+    station_data = new station_data_t();
+    station_node->start = sigil::station::start;
+    station_node->data = station_data;
+    station_node->stop = sigil::station::stop;
+    return sigil::VM_OK;
+}
+
+
+
+sigil::status_t stop() {
+    if (!station_node) return sigil::VM_SKIPPED;
+    if (!station_data) return sigil::VM_UNKNOWN_SUCCESS;
     delete station_data;
     station_data = nullptr;
     station_node->node_data.data = nullptr;
+    return sigil::VM_OK;
 }
 
 int sigil::station::scan_networks() {
@@ -21,20 +45,6 @@ int sigil::station::scan_networks() {
     return num_found_networks;
 }
 
-sigil::status_t  sigil::station::initialize(sigil::vmnode_t *vmsr) {
-    if (!vmsr) return sigil::VM_ARG_NULL;
-    if (system::validate_root(vmsr) != sigil::VM_OK) return sigil::VM_INVALID_ROOT;
-    
-    sigil::vmnode_t *platform = vmsr->peek_subnode("platform", 1);
-    if (!platform) return sigil::VM_NOT_FOUND;;
-
-    station_node = platform->spawn_subnode("station");
-    if (!station_node) return sigil::VM_FAILED_ALLOC;
-
-    station_data = new station_data_t();
-    station_node->set_data(station_data, cleanup_station_data);
-    return sigil::VM_OK;
-}
 
 // void sigil::station::scanner_task(void *context) {
 //     while (true) {

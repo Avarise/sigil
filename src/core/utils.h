@@ -33,19 +33,21 @@
 namespace sigil {
     enum status_t {
         VM_OK,
-        VM_ALREADY_EXISTS,
         VM_BUSY,
         VM_LOCKED,
         VM_FAILED,
-        VM_NOT_FOUND,
-        VM_FAILED_ALLOC,
+        VM_SKIPPED,
         VM_ARG_NULL,
+        VM_NOT_FOUND,
         VM_ARG_INVALID,
-        VM_NOT_SUPPORTED,
+        VM_FAILED_ALLOC,
         VM_INVALID_ROOT,
+        VM_NOT_SUPPORTED,
+        VM_ALREADY_EXISTS,
         VM_SYSTEM_SHUTDOWN,
+        VM_UNKNOWN_SUCCESS,
         VM_NOT_IMPLEMENTED,
-        SWAPCHAIN_REBUILDING,
+        VM_SWAPCHAIN_REBUILDING,
     };
 
     inline const char* status_t_cstr(status_t status);

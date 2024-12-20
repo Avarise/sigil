@@ -2,7 +2,8 @@
 #include <iomanip>
 #include <chrono>
 #include "log.h"
-bool sigil::log::use_console = true;
+extern bool use_console;
+bool use_console = true;
 
 void sigil::log::write_log_file(const char* format, va_list args) {
 #   ifdef __linux__
