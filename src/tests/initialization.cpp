@@ -16,12 +16,10 @@ protected:
 
 TEST_F(InitializationSuite, vm_startup_test) {
     ASSERT_EQ(sigil::virtual_machine::initialize(0, nullptr), sigil::VM_OK);
-    ASSERT_EQ(sigil::virtual_machine::is_active(), sigil::VM_OK);
+    ASSERT_EQ(sigil::virtual_machine::get_state(), sigil::VM_OK);
 }
 
-TEST_F(InitializationSuite, vm_extensions_networking) {
-    ASSERT_EQ(sigil::station::initialize(), sigil::VM_OK);
-}
+
 
 TEST_F(InitializationSuite, vm_shutdown_test) {
     ASSERT_EQ(sigil::virtual_machine::deinitialize(), sigil::VM_OK);

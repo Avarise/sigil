@@ -27,10 +27,12 @@ std::map<std::string, int> networks_name_map = {};
 //     return 0;
 // }
 sigil::status_t  sigil::station::initialize() {
-    sigil::status_t status = virtual_machine::is_active();
+    sigil::status_t status = virtual_machine::get_state();
     if (status != VM_OK) return status;
 
+
     vmnode_descriptor_t station_init_data;
+    station_init_data.name.value = "station";
 
     status = virtual_machine::add_platform_node(station_init_data);
     if (status != VM_OK) return status;

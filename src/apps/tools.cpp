@@ -24,10 +24,14 @@
         Run a SigilVM script snippet from a file
 */
 
+#include "virtual-machine.h"
+#include "graphics.h"
 #include "vulkan.h"
-#include <cstring>
-#include <iostream>
-#include <vector>
+#include "imgui.h"
+#include "utils.h"
+#include "visor.h"
+#include "log.h"
+#include <string>
 #define GLFW_INCLUDE_NONE
 #define GLFW_INCLUDE_VULKAN
 
@@ -36,64 +40,20 @@
 #include <sys/types.h>
 #include <sys/mman.h>
 #include <stdlib.h>
-#include <stdio.h>
-#include <stdio.h>
+#include <iostream>
+#include <cstring>
 #include <cstdlib>
 #include <cstdint>
 #include <cassert>
-#include <thread>
-#include <argp.h>
+#include <stdio.h>
+#include <regex.h>
 
-#include "virtual-machine.h"
-#include "graphics.h"
-#include "imgui.h"
-#include "utils.h"
-#include "visor.h"
-#include "log.h"
-
-// Temporary define, for clangd to include debug code
-// Probably should undef it and strip during build process
-#define APP_USE_VULKAN_DEBUG_REPORT
-
-#define APP_USE_UNLIMITED_FRAME_RATE
-#ifdef _DEBUG
-#define APP_USE_VULKAN_DEBUG_REPORT
-#endif
-
-// Sigil Tools subcommands
-static void             subcommand_flush_vm();
-static void             subcommand_console();
-static void             subcommand_exec();
-static void             subcommand_roll();
-static void             subcommand_gui();
-static void             subcommand_dwm();
-
-// Sigil Tools GUI subwindows
-static void             subwindow_style_manager();
-static void             subwindow_asset_manager();
-static void             subwindow_asset_editor();
-static void             subwindow_text_editor();
-static void             subwindow_overview();
-static void             subwindow_options();
-static void             subwindow_menubar();
-static void             subwindow_output();
-static void             subwindow_perf();
-static void             subwindow_demo();
-
-// Popups
-static void             popup_open_project();
-static void             popup_save_project();
-static void             popup_exit_project();
-static void             popup_new_project();
-static void             popup_import_file();
-static void             popup_export_file();
-
-// Procedure sent to visor to be threaded
-static sigil::status_t  gui_main_loop();
-static void             gui_prepare_frame(bool is_window_minimized);
-
-// Clean exit with all subprocedures wrapped
-static void             exit_sigil_tools();
+// SigilVM and auxiliary variable
+ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+sigil::graphics::window_t *main_window = nullptr;
+const char program_name[] = "SigilVM Tools";
+uint32_t frames_processed = 0;
+sigil::memstat_t mem_usage;
 
 // Visibility of various subwindows
 static struct {
@@ -112,174 +72,284 @@ static struct {
 std::string command_input;      // command to be executed via terminal
 std::string output_buffer;      // output combined for many source like terminal or debug
 
-// static struct {
-//     std::thread *console;
-//     std::thread *dwm;
-//     std::thread *gui;
-// } tools_threads {0};
-
 static struct text_editor_t {
     char editor_content[1024 * 32] = {0};
 } text_editor;
 
-// SigilVM and auxiliary variable
-ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+static bool vm_shutdown_on_dwm_shutdown = false;
 
-sigil::graphics::window_t *main_window = nullptr;
-const char program_name[] = "SigilVM Tools";
-sigil::status_t app_status = sigil::VM_NOOP;
-uint32_t frames_processed = 0;
-sigil::memstat_t mem_usage;
+// Sigil Tools subcommands
+static sigil::status_t subcommand_flush_vm();
+static sigil::status_t subcommand_console();
+static sigil::status_t subcommand_exec();
+static void            subcommand_help();
+static sigil::status_t subcommand_roll();
+static sigil::status_t subcommand_gui();
+static sigil::status_t subcommand_dwm();
 
-void ensure_active_vm(int argc, const char **argv) {
-    app_status = sigil::virtual_machine::is_active();
-    if (app_status == sigil::VM_OK) return;
+// Sigil Tools GUI subwindows
+static void subwindow_style_manager();
+static void subwindow_asset_manager();
+static void subwindow_asset_editor();
+static void subwindow_text_editor();
+static void subwindow_overview();
+static void subwindow_options();
+static void subwindow_menubar();
+static void subwindow_output();
+static void subwindow_perf();
+static void subwindow_demo();
 
-    app_status = sigil::virtual_machine::initialize(argc, argv);
-    if (app_status == sigil::VM_OK) return;
-    if (app_status == sigil::VM_ALREADY_EXISTS) return;
+// Popups
+static void popup_open_project();
+static void popup_save_project();
+static void popup_exit_project();
+static void popup_new_project();
+static void popup_import_file();
+static void popup_export_file();
 
-    printf("sigil-tools: failed to activate VM: %s\n", sigil::status_to_cstr(app_status));
-    exit_sigil_tools();
-}
+// Subprograms aka funtions to be threaded
+static void subprogram_console();
+static void subprogram_desktop();
+static void subprogram_gui();
+
+// Wrapper to run sigil tools commands
+sigil::status_t tools_cmd(const char* cmd);
 
 // Main, main loop, init/deinit
 int main(int argc, const char **argv) {
-    sigil::argparser_t parser(argc, argv);
+    if (argc == 1) subcommand_help();
 
-    if (parser.is_set("--debug")) {
+    sigil::argparser_t parser(argc, argv);
+    sigil::status_t status;
+
+    if (parser.is_set("--help") || parser.is_set("-h")) {
+        subcommand_help();
+    }
+
+    if (parser.is_set("--debug") || parser.is_set("-d")) {
         sigil::virtual_machine::set_debug_mode(true);
     }
 
-    // First check for subcommands that don't spawn VM
     if (parser.is_set("--countdown")) {
         sigil::log::tt_end_of_year();
-        app_status = sigil::VM_OK;
     }
 
-
-    if (parser.is_set("--flushvm")) {
+    if (parser.is_set("--flushvm") || parser.is_set("-f")) {
         subcommand_flush_vm();
+        goto tools_wait_for_shutdown;
     }
 
-    if (parser.is_set("--exec")) {
-        ensure_active_vm(argc, argv);
+    if (parser.is_set("--exec") || parser.is_set("-e")) {
+        status = sigil::virtual_machine::initialize(argc, argv);
+        if (!(status == sigil::VM_OK || status == sigil::VM_ALREADY_EXISTS)) goto tools_wait_for_shutdown;
         subcommand_exec();
     }
 
     if (parser.is_set("--console")) {
-        ensure_active_vm(argc, argv);
+        status = sigil::virtual_machine::initialize(argc, argv);
+        if (!(status == sigil::VM_OK || status == sigil::VM_ALREADY_EXISTS)) goto tools_wait_for_shutdown;
         subcommand_console();
     }
 
     if (parser.is_set("--dwm")) {
-        ensure_active_vm(argc, argv);
+        if (argc < 3) vm_shutdown_on_dwm_shutdown = true;
+        status = sigil::virtual_machine::initialize(argc, argv);
+        if (!(status == sigil::VM_OK || status == sigil::VM_ALREADY_EXISTS)) goto tools_wait_for_shutdown;
         subcommand_dwm();
     }
     
     if (parser.is_set("--gui")) {
-        ensure_active_vm(argc, argv);
+        status = sigil::virtual_machine::initialize(argc, argv);
+        if (!(status == sigil::VM_OK || status == sigil::VM_ALREADY_EXISTS)) goto tools_wait_for_shutdown;
         subcommand_gui();
     }
 
-
-    exit_sigil_tools();
+    tools_wait_for_shutdown:
+    status = sigil::virtual_machine::wait_for_shutdown();
+    printf("Exitting (%s)\n", sigil::status_to_cstr(status));
+    return status;
 }
-
-static void console_subprogram() {
-    sigil::status_t status = sigil::VM_OK;
-
-    while (status == sigil::VM_OK) {
-        printf("sigil -> ");
-        fflush(stdout);
-        std::string payload;
-        std::cin >> payload;
-
-        if (strcmp(payload.c_str(), "exit") == 0) {
-            exit_sigil_tools();
-        }
-        // TODO: ADd code execution
-        //status = exe(payload);
-        printf("\n");
-    }
-
-    printf("sigil-tools: shutting down console: %s\n", sigil::status_to_cstr(status));
-}
-
-void desktop_subprogram() {
-    printf("SigilVM: Starting desktop session\n");
-    system("startx /sigil/vm/src/scripts/dwm.sh");
-    printf("SigilVM: Desktop session closed\n");
-}
-
 
 // Subcommands
-void subcommand_flush_vm() {
-    printf("sigil-tools: Flushing SigilVM\n");
-    app_status = sigil::virtual_machine::flush();
-    exit_sigil_tools();
+static sigil::status_t subcommand_flush_vm() {
+    printf("sigil-tools: flushing virtual machine\n");
+    return sigil::virtual_machine::flush();
 }
 
-void subcommand_console() {
-    app_status = sigil::virtual_machine::spawn_thread(console_subprogram);
+static sigil::status_t subcommand_console() {
+    sigil::status_t status = sigil::virtual_machine::spawn_thread(subprogram_console);
 
-    app_status != sigil::VM_OK ?
-        printf("Failed to start console: %s\n", sigil::status_to_cstr(app_status)):
-        printf("Console Started\n");
+    status != sigil::VM_OK ?
+        printf("sigil-tools: failed to start console (%s)\n", sigil::status_to_cstr(status)):
+        printf("sigil-tools: console started\n");
+    
+    return status;
 }
 
-void subcommand_dwm() {
-    sigil::virtual_machine::spawn_thread(desktop_subprogram);
+static sigil::status_t subcommand_dwm() {
+    sigil::status_t status = sigil::virtual_machine::spawn_thread(subprogram_desktop);
+
+    status != sigil::VM_OK ?
+        printf("sigil-tools: failed to start desktop environment (%s)\n", sigil::status_to_cstr(status)):
+        printf("sigil-tools: desktop environment started\n");
+
+    return status;
 }
 
-void subcommand_gui() {
-    app_status = sigil::virtual_machine::is_active();
-    if (app_status != sigil::VM_OK) {
-        printf("sigil-tools: could not find active virtual machine, exiting\n");
-        exit_sigil_tools();
+static sigil::status_t subcommand_gui() {
+    sigil::status_t status = sigil::vulkan::initialize();
+    if (status != sigil::VM_OK) {
+        printf("sigil-tools: an error occured when initializing vulkan %s\n", sigil::status_to_cstr(status));
+        return status;
+    } 
+        
+    status = sigil::visor::initialize();
+    if (status != sigil::VM_OK) {
+        printf("sigil-tools: an error occured when initializing visor %s\n", sigil::status_to_cstr(status));
+        return status;
     }
 
-    app_status = sigil::vulkan::initialize();
-    if (app_status != sigil::VM_OK) exit_sigil_tools();
-
-    app_status = sigil::visor::initialize();
-    if (app_status != sigil::VM_OK) exit_sigil_tools();
-
-
-    // TODO: Prepare ImGui here, to minimize abstraction within modules
-    // Load fonts
-    printf("sigil-tools: creating main app window\n");
-    main_window = sigil::visor::spawn_window(program_name);
-
-
-    // if (main_window == nullptr) {
-    //     printf("sigil-tools: could not acquire window\n");
-    //     app_status = sigil::VM_FAILED_ALLOC;
-    //     exit_sigil_tools(app_status);
-    // }
-
-    // app_status = sigil::visor::prepare_for_imgui(main_window);
-    // if (app_status != sigil::VM_OK) {
-    //     printf("sigil-tools: failed to prepare ImGui\n");
-    //     exit_sigil_tools(app_status);
-    // }
-
-    // app_status = main_window->set_content(gui_main_loop);
-    // if (app_status != sigil::VM_OK) {
-    //     printf("sigil-tools: failed to set window content\n");
-    //     exit_sigil_tools(app_status);
-    // }
-
-    // // Spawn gui thread
-    // tools_threads.gui = main_window->deploy();
-    // if (tools_threads.gui == nullptr) {
-    //     printf("sigil-tools: failed to prepare sigil-tools gui\n");
-    //     exit_sigil_tools(sigil::VM_FAILED_ALLOC);
-    // }
+    status = sigil::virtual_machine::spawn_thread(subprogram_gui);
+    return status;
 }
 
-void subcommand_exec() {
-    printf("SigilVM: Direct command execution not available yet\n");
+sigil::status_t subcommand_exec() {
+    printf("virtual-machine: Direct command execution not available yet\n");
+    return sigil::VM_NOT_IMPLEMENTED;
+}
+
+static void subcommand_help() {
+    printf("Sigil Tools help page\n");
+    exit(0);
+}
+
+// Subprograms
+static void subprogram_console() {
+    sigil::virtual_machine::wait_for_vm();
+    std::string payload;
+    sigil::status_t status;
+
+    while (sigil::virtual_machine::is_active()) {
+        // Simple propmt
+        // TODO: Add variable for changeable prompt
+        printf("sigil -> ");
+        // Flush to get prompt out
+        fflush(stdout);
+        // Get the user input
+        std::cin >> payload;
+        //printf("\n");
+        // Run command
+        status = tools_cmd(payload.c_str());
+        if (status == sigil::VM_SYSTEM_SHUTDOWN) goto console_exit;
+
+        bool critical_err = !(status == sigil::VM_OK || status == sigil::VM_NOT_IMPLEMENTED);
+        if (critical_err) {
+            printf("sigil-tools: critical error occured within console thread (%s)\n", sigil::status_to_cstr(status));
+            goto console_exit;
+        }
+    }
+
+    console_exit:
+    printf("\nsigil-tools: exiting console\n");
+}
+
+static void subprogram_desktop() {
+    // Wait until VM is fully launched
+    sigil::exec_timer desktop_timer;
+    desktop_timer.start();
+    sigil::virtual_machine::wait_for_vm();
+    desktop_timer.stop();
+    printf("\nsigil-tools: starting desktop session after wating %lums\n", desktop_timer.ms());
+    
+    desktop_timer.start();
+    system("startx /sigil/vm/src/scripts/dwm.sh");
+    
+    desktop_timer.stop();
+    printf("\nsigil-tools: desktop session closed after %lums\n", desktop_timer.ms());
+
+    if (vm_shutdown_on_dwm_shutdown) sigil::virtual_machine::request_shutdown();
+}
+
+// Wrap this into a thread after we ensured that VM is running
+static void subprogram_gui() {
+    sigil::exec_timer gui_subpr_timer;
+    gui_subpr_timer.start();
+    sigil::status_t status = sigil::virtual_machine::wait_for_vm();
+    gui_subpr_timer.stop();
+    if (sigil::virtual_machine::get_debug_mode()) {
+        printf("sigil-tools: GUI waited %lums for VM\n", gui_subpr_timer.ms());
+    }
+
+    gui_subpr_timer.start();
+    status = sigil::graphics::initialize_glfw();
+    if (!(status == sigil::VM_OK || status == sigil::VM_ALREADY_EXISTS)) {
+        printf("sigil-tools: error failed to init glfw %s\n", sigil::status_to_cstr(status));
+        return;
+    }
+
+    gui_subpr_timer.stop();
+    if (sigil::virtual_machine::get_debug_mode()) {
+        printf("sigil-tools: glfw registered in %luus\n", gui_subpr_timer.us());
+    }
+    
+    gui_subpr_timer.start();
+    // TODO: Add proper initialization
+    ImGuiIO& io = ImGui::GetIO();
+
+
+    // Measure init stop
+    gui_subpr_timer.stop();
+    if (sigil::virtual_machine::get_debug_mode()) {
+        printf("sigil-tools: GUI components initialized in %luus\n", gui_subpr_timer.us());
+    }
+
+    while (!glfwWindowShouldClose(main_window->glfw_window)) {
+        // Start measuring frame thread time
+        gui_subpr_timer.start();
+
+        // Use visor to prepare new frame
+        status = sigil::visor::prepare_for_new_frame(main_window);
+        if (status != sigil::VM_OK) return;
+
+        // Prepare new frame, but from ImGui perspective only
+        ImGui::NewFrame();
+        ImGuiIO &io = ImGui::GetIO();
+        main_window->imgui_wd.ClearValue.color.float32[0] = clear_color.x * clear_color.w;
+        main_window->imgui_wd.ClearValue.color.float32[1] = clear_color.y * clear_color.w;
+        main_window->imgui_wd.ClearValue.color.float32[2] = clear_color.z * clear_color.w;
+        main_window->imgui_wd.ClearValue.color.float32[3] = clear_color.w;
+        
+        // Main window composition
+        ImGui::DockSpaceOverViewport();
+        
+        // Always draw menubar
+        subwindow_menubar();
+        
+        // Conditional subwindows
+        if (subwindows.asset_manager) subwindow_asset_manager();
+        if (subwindows.style_editor) subwindow_style_manager();
+        if (subwindows.asset_editor) subwindow_asset_editor();
+        if (subwindows.text_editor) subwindow_text_editor();
+        if (subwindows.overview) subwindow_overview();
+        if (subwindows.options) subwindow_options();
+        if (subwindows.output) subwindow_output();
+        if (subwindows.demo) subwindow_demo();
+        if (subwindows.perf) subwindow_perf();
+
+        status = sigil::visor::finalize_new_frame(main_window);
+        if (status != sigil::VM_OK) return;
+
+        frames_processed++;
+        gui_subpr_timer.stop();
+
+        // TODO: Add decay based last X frame stats
+
+        if (!(frames_processed % 515)) {
+            output_buffer += sigil::log::get_current_time();
+            sigil::insert_into_string(output_buffer,":spent %lu microseconds rendering last frame (#%u)\n",
+                gui_subpr_timer.us(), frames_processed);
+        }
+    }
 }
 
 // Subwindows
@@ -294,7 +364,12 @@ void subwindow_menubar() {
             if (ImGui::MenuItem("Export file")) popup_export_file();
             if (ImGui::MenuItem("Import file")) popup_import_file();
             ImGui::Separator();
-            if (ImGui::MenuItem("Exit", "Alt+F4")) exit_sigil_tools();
+            if (ImGui::MenuItem("Exit", "Alt+F4")) {
+                sigil::status_t st = sigil::virtual_machine::request_shutdown();
+                if (st != sigil::VM_OK) {
+                    printf("sigil-tools: errors occured when requesting shutdown %s\n", sigil::status_to_cstr(st));
+                }
+            }
             ImGui::EndMenu();
         }
 
@@ -396,8 +471,6 @@ void subwindow_asset_manager() {
     }
 
     ImGui::End();
-
-
 }
 
 static void subwindow_overview() {
@@ -458,77 +531,28 @@ void popup_import_file() {
 
 }
 
-sigil::status_t gui_main_loop() {
-    ImGuiIO& io = ImGui::GetIO();
-    sigil::exec_timer gui_main_loop_timer;
+sigil::status_t tools_cmd(const char* cmd) {
+    if (!cmd) return sigil::VM_ARG_NULL;
 
-    while (!glfwWindowShouldClose(main_window->glfw_window)) {
-        // Start measuring frame thread time
-        gui_main_loop_timer.start();
+    sigil::status_t status;
 
-        // Use visor to prepare new frame
-        app_status = sigil::visor::prepare_for_new_frame(main_window);
-        if (app_status != sigil::VM_OK) exit_sigil_tools();
-
-        // Prepare new frame, but from ImGui perspective only
-        ImGui::NewFrame();
-        ImGuiIO &io = ImGui::GetIO();
-        main_window->imgui_wd.ClearValue.color.float32[0] = clear_color.x * clear_color.w;
-        main_window->imgui_wd.ClearValue.color.float32[1] = clear_color.y * clear_color.w;
-        main_window->imgui_wd.ClearValue.color.float32[2] = clear_color.z * clear_color.w;
-        main_window->imgui_wd.ClearValue.color.float32[3] = clear_color.w;
-        
-        // Main window composition
-        ImGui::DockSpaceOverViewport();
-        
-        // Always draw menubar
-        subwindow_menubar();
-        
-        // Conditional subwindows
-        if (subwindows.asset_manager) subwindow_asset_manager();
-        if (subwindows.style_editor) subwindow_style_manager();
-        if (subwindows.asset_editor) subwindow_asset_editor();
-        if (subwindows.text_editor) subwindow_text_editor();
-        if (subwindows.overview) subwindow_overview();
-        if (subwindows.options) subwindow_options();
-        if (subwindows.output) subwindow_output();
-        if (subwindows.demo) subwindow_demo();
-        if (subwindows.perf) subwindow_perf();
-
-        app_status = sigil::visor::finalize_new_frame(main_window);
-        if (app_status != sigil::VM_OK) exit_sigil_tools();
-
-        frames_processed++;
-        gui_main_loop_timer.stop();
-
-        
-
-
-        if (!(frames_processed % 515)) {
-            output_buffer += sigil::log::get_current_time();
-            sigil::insert_into_string(output_buffer,":spent %lu microseconds rendering last frame (#%u)\n",
-                                     gui_main_loop_timer.us(), frames_processed);
-        }
+    if (strcmp(cmd, "exit") == 0) {
+        sigil::virtual_machine::request_shutdown();
+        return sigil::VM_SYSTEM_SHUTDOWN;
     }
 
-    return sigil::VM_OK;
-}
-
-void print_help() {
-    
-}
-
-static void exit_sigil_tools() {
-    if (app_status == sigil::VM_NOOP) {
-        printf("Nothing to do...\n");
-        goto egress;
+    else if (strcmp(cmd, "desktop") == 0) {
+        sigil::virtual_machine::spawn_thread(subprogram_desktop);
+        return sigil::VM_OK;
     }
 
-    app_status = sigil::virtual_machine::deinitialize();
+    else if (strcmp(cmd, "gui") == 0) {
+        sigil::virtual_machine::spawn_thread(subprogram_gui);
+        return sigil::VM_OK;
+    }
 
-    egress:
-    if (sigil::virtual_machine::get_debug_mode())
-        printf("sigil-tools: exiting -> %s\n", sigil::status_to_cstr(app_status));
-
-    exit(0);
+    else {
+        printf("sigil-tools: unknown command %s\n", cmd);
+        return sigil::VM_NOT_IMPLEMENTED;
+    }
 }

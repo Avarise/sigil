@@ -13,8 +13,8 @@ sigil::status_t sigil::iocommon::deinitialize() {
 }
 
 sigil::status_t sigil::iocommon::initialize() {
-    status_t status = virtual_machine::is_active();
-    if (status != VM_OK) return status;
+    //status_t status = virtual_machine::is_active();
+    //if (status != VM_OK) return status;
 
 
     return sigil::VM_OK;

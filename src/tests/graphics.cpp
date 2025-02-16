@@ -20,9 +20,18 @@ class GraphicsSuite : public ::testing::Test {
     Vulkan initialization
     Visor initialization
 */
-TEST_F(GraphicsSuite, visor_cleanup) {
+TEST_F(GraphicsSuite, vulkan_startup) {
 
 }
+
+TEST_F(GraphicsSuite, visor_startup) {
+
+}
+
+TEST_F(GraphicsSuite, window_creation) {
+
+}
+
 
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);

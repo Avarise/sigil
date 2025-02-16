@@ -147,4 +147,6 @@ namespace sigil::graphics {
         status_t (*gui_routine)(void) = nullptr;
 
     };
+
+    sigil::status_t initialize_glfw();
 }

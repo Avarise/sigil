@@ -29,6 +29,13 @@ set(THREADS_PREFER_PTHREAD_FLAG ON)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DVK_PROTOTYPES")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DVK_PROTOTYPES")
 
+
+
+
+
+
+
+
 # Libraries
 find_package(Vulkan REQUIRED)
 set(LIBRARIES "glfw;Vulkan::Vulkan")
@@ -48,6 +55,8 @@ set(SIGIL_RC_USER "$ENV{HOME}/.config/sigilrc")
 set(SIGIL_RC ${CMAKE_SOURCE_DIR}/assets/configs/sigilrc)
 set(BASHRC "$ENV{HOME}/.bashrc")
 set(ZSHRC "$ENV{HOME}/.zshrc")
+# Find the running kernel's build directory
+set(KERNEL_HEADERS "/lib/modules/${CMAKE_SYSTEM_PROCESSOR}/build")
 
 # SigilVM source paths
 set(DIR_VM_TESTING ${CMAKE_SOURCE_DIR}/src/tests) # Excluded from installed library, TODO: move some testing to .h files
@@ -82,6 +91,9 @@ include_directories(${DIR_VM_SOUND})
 include_directories(${DIR_VM_CORE})
 include_directories(${DIR_VM_GAME})
 include_directories(${DIR_VM_NET})
+# Add include directories
+include_directories(${KERNEL_HEADERS}/include)
+
 
 # External paths
 set(DIR_IMGUI ${CMAKE_SOURCE_DIR}/src/extern/imgui)
@@ -163,6 +175,19 @@ add_executable(gtest-security ${DIR_VM_TESTING}/security.cpp ${SRC_CORE})
 target_link_libraries(gtest-security ${LIBRARIES} gtest gtest_main)
 target_compile_definitions(gtest-security PUBLIC -DImTextureID=ImU64 -DSIGIL_USE_GUI)
 add_test(NAME SecurityTestSuite COMMAND ${CMAKE_BINARY_DIR}/gtest-security)
+
+
+# # Add the module source file
+# add_library(sigilvmmod MODULE src/kernel/ksigil.c)
+
+# # Set compilation flags
+# target_compile_options(sigilvmmod PRIVATE -Wall -Wextra -Werror)
+
+# # Ensure we're building against the kernel headers
+# target_include_directories(sigilvmmod PRIVATE ${KERNEL_HEADERS}/include)
+
+
+
 
 # Install step: Copy file
 add_custom_target(install_config

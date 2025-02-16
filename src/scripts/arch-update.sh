@@ -1,5 +1,4 @@
 #!/bin/bash
-
 # Wrapper for reflector
 
 if [ "$EUID" -ne 0 ]; then

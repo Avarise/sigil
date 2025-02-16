@@ -4,6 +4,3 @@
 [submodule "src/extern/imgui"]
 	path = src/extern/imgui
 	url = https://github.com/ocornut/imgui.git
-[submodule "src/extern/dwm"]
-	path = src/extern/dwm
-	url = git://git.suckless.org/dwm

@@ -2,13 +2,14 @@
 #include <vulkan/vulkan.h>
 #include <GLFW/glfw3.h>
 #include <cassert>
-#include <cstddef>
 #include <cstdint>
 #include <vector>
+#include "graphics.h"
 #include "system.h"
 #include "utils.h"
 #include "virtual-machine.h"
 #include "vulkan.h"
+#include "visor.h"
 
 // Vulkan data
 sigil::vulkan::vk_qinfo vk_main_q, vk_graphics_q, vk_compute_q;
@@ -36,6 +37,9 @@ static sigil::status_t initialize_vulkan_descriptor_pool();
 static sigil::status_t initialize_vulkan_extensions(); 
 static sigil::status_t initialize_vulkan_instance();
 static sigil::status_t initialize_vulkan_queues();
+
+
+
 static bool has_gpu() {
     if (phy_dev_registered.size() > 0) return true;
     return false;
@@ -58,23 +62,27 @@ bool is_vk_ext_available(const std::vector<VkExtensionProperties> &properties, c
 
 // VM Tree integration
 sigil::status_t sigil::vulkan::initialize() {
-    sigil::status_t status = sigil::virtual_machine::is_active();
-    if (status != VM_OK) return status;
-
     sigil::exec_timer tmr;
     tmr.start();
+    sigil::status_t status = virtual_machine::get_state();
+    if (status != VM_OK) return status;
 
     sigil::vmnode_descriptor_t node_info;
     node_info.name.value = "vulkan";
+    status = sigil::virtual_machine::add_platform_node(node_info);
 
-    sigil::virtual_machine::add_platform_node(node_info);
-
-    //status = initialize_vulkan_physical_devices();
-    //status = initialize_vulkan_instance();
+    status = initialize_vulkan_instance();
+    status = initialize_vulkan_physical_devices();
     //status = initialize_vulkan_queues();
-    //err = setup_vulkan_descriptor_pool();
+    //status = setup_vulkan_descriptor_pool();
+
+
+    
     tmr.stop();
-    printf("vulkan: initialized in %luns\n", tmr.ns());
+    if (virtual_machine::get_debug_mode()) {
+        printf("vulkan: initialized in %luns\n", tmr.ns());
+    }
+
     return status;
 }
 
@@ -91,6 +99,108 @@ sigil::status_t sigil::vulkan::deinitialize() {
 
     glfwTerminate();
     return VM_OK;
+}
+
+sigil::status_t initialize_vulkan_instance() {
+    // assert(vulkan_node != nullptr);
+    // assert(vulkan_data != nullptr);
+    // assert(vulkan_data->vk_inst == nullptr);
+    // assert(vulkan_data->vk_allocators == nullptr);
+
+    sigil::exec_timer tmr;
+    tmr.start();
+
+    // Extension properties enabled by default, we use those to determine features available
+    std::vector<VkExtensionProperties> properties_implicit;
+    uint32_t properties_implicit_count;
+    VkResult err;
+
+    VkInstanceCreateInfo create_info = {};
+    create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+
+    // Probe for implicit extensions
+    vkEnumerateInstanceExtensionProperties(nullptr, &properties_implicit_count, nullptr);
+    properties_implicit.resize(properties_implicit_count);
+    err = vkEnumerateInstanceExtensionProperties(nullptr, &properties_implicit_count, properties_implicit.data());
+    sigil::vulkan::check_result(err);
+
+    // Load GUI extensions if not in compute mode
+    if (!compute_mode) {
+        sigil::graphics::initialize_glfw();
+        if (!glfwVulkanSupported()) {
+           printf("vulkan: Vulkan GLFW Not Supported\n");
+            return sigil::VM_NOT_SUPPORTED;
+        }
+        
+        uint32_t glfw_extensions_count = 0;
+        const char** glfw_extensions = glfwGetRequiredInstanceExtensions(&glfw_extensions_count);
+        for (uint32_t i = 0; i < glfw_extensions_count; i++) {
+            vk_inst_ext.push_back(glfw_extensions[i]);
+        }
+        
+        if (is_vk_ext_available(properties_implicit, 
+                                            VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME)) {
+            vk_inst_ext.push_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
+        }
+
+#ifdef VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
+        if (is_vk_ext_available(properties_implicit, VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME)) {
+            vk_inst_ext.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+            create_info.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+        }
+#endif
+    }
+
+    create_info.enabledExtensionCount = (uint32_t)vk_inst_ext.size();
+    create_info.ppEnabledExtensionNames = vk_inst_ext.data();
+    //printf("vulkan: enabled Vulkan extensions: %u\n", create_info.enabledExtensionCount);
+    err = vkCreateInstance(&create_info, vk_allocators, &vk_inst);
+    sigil::vulkan::check_result(err);
+    tmr.stop();
+    printf("vulkan: instance created in %lums\n", tmr.ms());
+    return sigil::VM_OK;
+}
+
+sigil::status_t initialize_vulkan_physical_devices() {
+    sigil::status_t status;
+
+    // First get number of devices found
+    VkResult err = vkEnumeratePhysicalDevices(vk_inst, &num_phy_devices, nullptr);
+    sigil::vulkan::check_result(err);
+
+    if (num_phy_devices == 0) {
+        // TODO: Swap for logger
+        printf("vulkan: no GPUs found...\n");
+        return sigil::VM_NOT_FOUND;
+    } else {
+        printf("vulkan: found %u GPUs\n", num_phy_devices);
+    }
+
+    // Resize physical device list and populate it
+    phy_dev_all.resize(num_phy_devices);
+    err = vkEnumeratePhysicalDevices(vk_inst, &num_phy_devices, 
+                                     phy_dev_all.data());
+    sigil::vulkan::check_result(err);
+
+    // Seek and register entries with VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU
+    for (uint32_t i = 0; i < num_phy_devices; i++) {
+        VkPhysicalDevice device = phy_dev_all.at(i);
+        VkPhysicalDeviceProperties properties;
+        vkGetPhysicalDeviceProperties(device, &properties);
+        printf("vulkan: checking %s...\n", properties.deviceName);
+
+        if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
+            phy_dev_registered.push_back(device);
+            printf("vulkan: %s registered\n", properties.deviceName);
+        }
+    }
+
+    if (phy_dev_registered.size() > 0) return sigil::VM_OK;
+
+    phy_dev_registered.push_back(phy_dev_all.at(0));
+    // TODO: Change to log
+    printf("vulkan: no discrete GPU entry found, using default\n");
+    return sigil::VM_OK;
 }
 
 // sigil::status_t setup_vulkan_descriptor_pool() {
@@ -219,110 +329,8 @@ sigil::status_t sigil::vulkan::deinitialize() {
 //     return err;
 // }
 
-// sigil::status_t initialize_graphics_devices() {
-//     assert(vulkan_node != nullptr);
-//     assert(vulkan_data != nullptr);
-//     assert(vulkan_data->vk_inst != nullptr);
 
-//     // First get number of devices found
-//     VkResult err = vkEnumeratePhysicalDevices(vulkan_data->vk_inst, &vulkan_data->num_phys, nullptr);
-//     vulkan::check_result(err);
 
-//     if (vulkan_data->num_phys == 0) {
-//         // TODO: Swap for logger
-//         printf("vulkan: no GPUs found...\n");
-//         return sigil::VM_NOT_FOUND;
-//     } else {
-//         printf("vulkan: found %u GPUs\n", vulkan_data->num_phys);
-//     }
-
-//     // Resize physical device list and populate it
-//     vulkan_data->phy_dev_all.resize(vulkan_data->num_phys);
-//     err = vkEnumeratePhysicalDevices(vulkan_data->vk_inst, 
-//                                  &vulkan_data->num_phys, 
-//                                      vulkan_data->phy_dev_all.data());
-//     sigil::vulkan::check_result(err);
-
-//     // Seek and register entries with VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU
-//     for (uint32_t i = 0; i < vulkan_data->num_phys; i++) {
-//         VkPhysicalDevice device = vulkan_data->phy_dev_all.at(i);
-//         VkPhysicalDeviceProperties properties;
-//         vkGetPhysicalDeviceProperties(device, &properties);
-//         printf("vulkan: checking %s...\n", properties.deviceName);
-
-//         if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
-//             vulkan_data->phy_dev_registered.push_back(device);
-//             printf("vulkan: %s registered\n", properties.deviceName);
-//         }
-//     }
-
-//     if (vulkan_data->phy_dev_registered.size() > 0) return sigil::VM_OK;
-
-//     vulkan_data->phy_dev_registered.push_back(vulkan_data->phy_dev_all.at(0));
-//     // TODO: Change to log
-//    printf("vulkan: no discrete GPU entry found, using default\n");
-//     return sigil::VM_OK;
-// }
-
-// sigil::status_t initialize_vulkan_instance() {
-//     assert(vulkan_node != nullptr);
-//     assert(vulkan_data != nullptr);
-//     assert(vulkan_data->vk_inst == nullptr);
-//     assert(vulkan_data->vk_allocators == nullptr);
-
-//     sigil::utils::exec_timer tmr;
-//     tmr.start();
-
-//     // Extension properties enabled by default, we use those to determine features available
-//     std::vector<VkExtensionProperties> properties_implicit;
-//     uint32_t properties_implicit_count;
-//     VkResult err;
-
-//     VkInstanceCreateInfo create_info = {};
-//     create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-
-//     // Probe for implicit extensions
-//     vkEnumerateInstanceExtensionProperties(nullptr, &properties_implicit_count, nullptr);
-//     properties_implicit.resize(properties_implicit_count);
-//     err = vkEnumerateInstanceExtensionProperties(nullptr, &properties_implicit_count, properties_implicit.data());
-//     sigil::vulkan::check_result(err);
-
-//     // Load GUI extensions if not in compute mode
-//     if (!vulkan_data->compute_mode) {
-//         sigil::visor::soft_init_glfw();
-//         if (!glfwVulkanSupported()) {
-//            printf("vulkan: Vulkan GLFW Not Supported\n");
-//             return sigil::VM_NOT_SUPPORTED;
-//         }
-        
-//         uint32_t glfw_extensions_count = 0;
-//         const char** glfw_extensions = glfwGetRequiredInstanceExtensions(&glfw_extensions_count);
-//         for (uint32_t i = 0; i < glfw_extensions_count; i++) {
-//             vulkan_data->vk_inst_ext.push_back(glfw_extensions[i]);
-//         }
-        
-//         if (is_vk_ext_available(properties_implicit, 
-//                                             VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME)) {
-//             vulkan_data->vk_inst_ext.push_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
-//         }
-
-// #ifdef VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
-//         if (is_vk_ext_available(properties_implicit, VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME)) {
-//             vulkan_data->vk_inst_ext.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-//             create_info.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
-//         }
-// #endif
-//     }
-
-//     create_info.enabledExtensionCount = (uint32_t)vulkan_data->vk_inst_ext.size();
-//     create_info.ppEnabledExtensionNames = vulkan_data->vk_inst_ext.data();
-//     //printf("vulkan: enabled Vulkan extensions: %u\n", create_info.enabledExtensionCount);
-//     err = vkCreateInstance(&create_info, vulkan_data->vk_allocators, &vulkan_data->vk_inst);
-//     sigil::vulkan::check_result(err);
-//     tmr.stop();
-//     printf("vulkan: instance created in %lums\n", tmr.ms());
-//     return sigil::VM_OK;
-// }
 
 // sigil::status_t vulkan::attach_to_window(sigil::window_t *window) {
 //     return sigil::VM_OK;

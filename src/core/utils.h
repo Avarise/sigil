@@ -8,8 +8,10 @@
 #include <cstring>
 #include <cstdio>
 #include <chrono>
+#include <memory>
 #include <string>
 #include <cmath>
+#include <vector>
 
 #define MAX(A, B)               ((A) > (B) ? (A) : (B))
 #define MIN(A, B)               ((A) < (B) ? (A) : (B))
@@ -30,27 +32,52 @@
 #define BIT(x) ((uint32_t)1 << x)
 #endif /* BIT */
 
+
+
+
 namespace sigil {
+    /*
+        List of statuses we need to convey, preferably generic
+        VM_SUCCESS = 0
+        VM_IDLE
+        OK = 0
+        IDLE // no op
+        BUSY //  working, like still initializing
+        LOCKED // locked, for example when attempting to shutdown
+        SKIPPED // action already done
+    
+    */
     enum status_t {
-        VM_OK,
-        VM_NOOP,
-        VM_BUSY,
-        VM_LOCKED,
-        VM_FAILED,
-        VM_SKIPPED,
-        VM_ARG_NULL,
-        VM_NOT_FOUND,
-        VM_ARG_INVALID,
-        VM_FAILED_ALLOC,
-        VM_INVALID_ROOT,
-        VM_NOT_SUPPORTED,
-        VM_ALREADY_EXISTS,
-        VM_SYSTEM_SHUTDOWN,
-        VM_UNKNOWN_SUCCESS,
-        VM_NOT_IMPLEMENTED,
-        VM_SWAPCHAIN_REBUILDING,
+        VM_OK                       = 0,
+        VM_IDLE                     = BIT(0),
+        VM_BUSY                     = BIT(1),
+        VM_LOCKED                   = BIT(2),
+        VM_FAILED                   = BIT(3),
+        VM_SKIPPED                  = BIT(4),
+        VM_ARG_NULL                 = BIT(5),
+        VM_NOT_FOUND                = BIT(6),
+        VM_ARG_INVALID              = BIT(7),
+        VM_FAILED_ALLOC             = BIT(8),
+        VM_INVALID_ROOT             = BIT(9),
+        VM_NOT_SUPPORTED            = BIT(10),
+        VM_ALREADY_EXISTS           = BIT(11),
+        VM_SYSTEM_SHUTDOWN          = BIT(12),
+        VM_UNKNOWN_SUCCESS          = BIT(13),
+        VM_NOT_IMPLEMENTED          = BIT(14),
+        VM_SWAPCHAIN_REBUILDING     = BIT(15),
+        VM_DISABLED,
+
     };
 
+    inline status_t operator|(const status_t& lhs, const status_t& rhs) {                                             
+        using T = std::underlying_type_t<status_t>;
+        return static_cast<status_t>(static_cast<T>(lhs) | static_cast<T>(rhs)); 
+    }                                   
+
+    inline status_t operator&(const status_t& lhs, const status_t& rhs) {                                                                   
+        using T = std::underlying_type_t<status_t>;                              
+        return static_cast<status_t>(static_cast<T>(lhs) & static_cast<T>(rhs)); 
+    }
 
 
     inline const char* status_to_cstr(status_t status);
@@ -247,6 +274,11 @@ namespace sigil {
         }
     };
 
+    struct argmock {
+        int argc = 0;
+        char **argv;
+    };
+
     inline uint64_t u64factorial(uint64_t n) {
         uint64_t ans = 1;
         for (int i = 1; i <= n; i++) ans *= i;
@@ -268,16 +300,16 @@ namespace sigil {
     }
 
 
-    inline void exit(sigil::status_t status) {
-        printf("VM Status: %s (%d), exiting\n", sigil::status_to_cstr(status), status);
-        std::exit(0);
-    }
+    // inline void exit(sigil::status_t status) {
+    //     printf("VM Status: %s (%d), exiting\n", sigil::status_to_cstr(status), status);
+    //     std::exit(0);
+    // }
 }
 
 inline const char* sigil::status_to_cstr(sigil::status_t status) {
     switch (status) {
         case VM_OK: return "VM_OK";
-        case VM_NOOP: return "VM_NOOP";
+        case VM_IDLE: return "VM_IDLE";
         case VM_BUSY: return "VM_BUSY";
         case VM_LOCKED: return "VM_LOCKED";
         case VM_FAILED: return "VM_FAILED";

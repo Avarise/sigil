@@ -44,6 +44,61 @@ sigil::status_t sigil::visor::finalize_new_frame(sigil::graphics::window_t *wind
     return VM_OK;
 }
 
+sigil::status_t sigil::visor::initialize() {
+    sigil::status_t status = virtual_machine::get_state();
+    if (status != VM_OK) return status;
+
+    sigil::exec_timer tmr;
+    tmr.start();
+
+    sigil::vmnode_descriptor_t node_info;
+    node_info.name.value = "visor";
+    
+    sigil::virtual_machine::add_runtime_node(node_info);
+    
+    tmr.stop();
+    if (virtual_machine::get_debug_mode()) {
+        printf("visor: initialized in %luns\n", tmr.ns());
+    }
+
+    return sigil::VM_OK;
+}
+
+sigil::status_t sigil::visor::deinitialize() {
+
+    return VM_OK;
+}
+
+
+sigil::graphics::window_t *sigil::visor::spawn_window(const char *window_name) {
+    if (!visor_node) return nullptr;
+
+    // TODO: User returned status from soft init and log the outcome
+    //soft_init_glfw();
+
+    if (!glfwVulkanSupported()) {
+        printf("iocommon: glfw-vulkan not available\n");
+        return nullptr;
+    }
+
+    sigil::graphics::window_t *new_window = new sigil::graphics::window_t();
+
+    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+    new_window->glfw_window = glfwCreateWindow(1280, 720, window_name, nullptr, nullptr);
+
+    if (new_window->glfw_window == nullptr) {
+        printf("iocommon: failed to create glfw_window\n");
+        return nullptr;
+    }
+
+    new_window->name = window_name;
+    new_window->min_image_count = 2;
+
+    windows.push_back(new_window);
+    return new_window;
+}
+
+
 // sigil::status_t sigil::visor::prepare_imgui_drawdata(window_t *window) {
 //     VkResult err;
 
@@ -349,48 +404,7 @@ sigil::status_t sigil::visor::finalize_new_frame(sigil::graphics::window_t *wind
 //     fprintf(stderr, "GLFW Error %d: %s\n", error, description);
 // }
 
-// sigil::status_t sigil::visor::soft_init_glfw() {
-//     assert(visor_data != nullptr);
-//     if (visor_data->glfw_initialized) return sigil::VM_ALREADY_EXISTS;
 
-//     if (!glfwInit()) {
-//        printf("iocommon: failed glfw init\n");
-//         visor_data->glfw_initialized = false;
-//         return sigil::VM_FAILED;
-//     }
-
-//     visor_data->glfw_initialized = true;
-//     return sigil::VM_OK;
-// }
-
-sigil::graphics::window_t *sigil::visor::spawn_window(const char *window_name) {
-    if (!visor_node) return nullptr;
-    //if (!visor_data) return nullptr;
-
-    // TODO: User returned status from soft init and log the outcome
-    //soft_init_glfw();
-
-    if (!glfwVulkanSupported()) {
-        printf("iocommon: glfw-vulkan not available\n");
-        return nullptr;
-    }
-
-    sigil::graphics::window_t *new_window = new sigil::graphics::window_t();
-
-    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    new_window->glfw_window = glfwCreateWindow(1280, 720, window_name, nullptr, nullptr);
-
-    if (new_window->glfw_window == nullptr) {
-        printf("iocommon: failed to create glfw_window\n");
-        return nullptr;
-    }
-
-    new_window->name = window_name;
-    new_window->min_image_count = 2;
-
-    windows.push_back(new_window);
-    return new_window;
-}
 
 // sigil::window_t *sigil::visor::get_window(int index) {
 //     if (!visor_node) return nullptr;
@@ -420,24 +434,3 @@ sigil::graphics::window_t *sigil::visor::spawn_window(const char *window_name) {
 //     ImGui_ImplVulkan_NewFrame();
 //     return sigil::VM_OK;
 // }
-sigil::status_t sigil::visor::initialize() {
-    status_t status = sigil::virtual_machine::is_active();
-    if (status != VM_OK) return status;
-
-    sigil::exec_timer tmr;
-    tmr.start();
-
-    sigil::vmnode_descriptor_t node_info;
-    node_info.name.value = "visor";
-    
-    sigil::virtual_machine::add_runtime_node(node_info);
-    
-    tmr.stop();
-    printf("visor: initialized in %luns\n", tmr.ns());
-    return sigil::VM_OK;
-}
-
-sigil::status_t sigil::visor::deinitialize() {
-
-    return VM_OK;
-}

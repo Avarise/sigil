@@ -1,10 +1,12 @@
 # Sigil Tools Suite
-alias sigil-desktop='/sigil/vm/build/sigil-tools --dwm'
+alias sigil-host-update='sudo /sigil/vm/src/scripts/arch-update.sh'
 alias sigil-console='/sigil/vm/build/sigil-tools --console'
-alias sigil-backup='/sigil/vm/src/scripts/backup.sh'
-alias sigil-editor='/sigil/vm/build/sigil-tools --gui'
-alias sigil-build='/sigil/vm/src/scripts/build.sh --install'
 alias sigil-test='/sigil/vm/src/scripts/build.sh --test'
+alias sigil-tools='/sigil/vm/build/sigil-tools --debug'
+alias sigil-desktop='/sigil/vm/build/sigil-tools --dwm'
+alias sigil-editor='/sigil/vm/build/sigil-tools --gui'
+alias sigil-backup='/sigil/vm/src/scripts/backup.sh'
+alias sigil-build='/sigil/vm/src/scripts/build.sh'
 alias sigil-code='code /sigil/vm'
 
 # Sigil wlx wine wrappers

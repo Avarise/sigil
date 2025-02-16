@@ -12,7 +12,7 @@ BUILD_DIR="/sigil/vm/build"
 IMGUI_DIR="/sigil/vm/src/extern/imgui"
 SHADER_DIR="/sigil/vm/src/shaders"
 SCRIPTS_DIR="/sigil/vm/src/scripts"
-SHADER_CACHE_DIR="/sigil/vm/assets/shader-cache"
+SHADER_CACHE_DIR="/sigil/shader-cache"
 
 add_sigil_to_bashrc() {
     local SIGILRC="$HOME/.config/sigilrc"
@@ -182,7 +182,7 @@ case "$1" in
         compile_all_shaders
         ;;
     --install)
-        build_project
+        install_project
         ;;
     --build)
         build_project

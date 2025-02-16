@@ -1,5 +1,15 @@
 #include <vulkan.h>
 #include "graphics.h"
+#include "utils.h"
+
+static bool glfw_initialized = false;
+
+
+static void glfw_error_callback(int error, const char* description)
+{
+    fprintf(stderr, "GLFW Error %d: %s\n", error, description);
+}
+
 
 sigil::graphics::dynamic_mesh_t::dynamic_mesh_t() {
     position.x = 0.0f;
@@ -82,4 +92,18 @@ std::thread* sigil::graphics::window_t::deploy() {
 
 void sigil::graphics::window_t::wait_for_shutdown() {
 
+}
+
+sigil::status_t sigil::graphics::initialize_glfw() {
+    if (glfw_initialized) return sigil::VM_ALREADY_EXISTS;
+    glfwSetErrorCallback(glfw_error_callback);
+
+    if (!glfwInit()) {
+        printf("iocommon: failed glfw init\n");
+        glfw_initialized = false;
+        return sigil::VM_FAILED;
+    }
+
+    glfw_initialized = true;
+    return sigil::VM_OK;
 }

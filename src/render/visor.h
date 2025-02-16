@@ -12,6 +12,9 @@
 namespace sigil::visor {
     struct render_channel_t {
         sigil::sync_data_t sync;
+        void (*init_function)(void);
+        void (*task)(void);
+        //void (*init_function)(void);
     };
 
     /*
